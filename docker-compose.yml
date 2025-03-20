@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  frontend:
+    build:
+      context: ./frontend # Path to the frontend directory
+      dockerfile: Dockerfile # Use Dockerfile inside the frontend directory
+    ports:
+      - "3000:3000"
+    networks:
+      - statflix-network
+
+  backend:
+    build:
+      context: ./backend # Path to the backend directory
+      dockerfile: Dockerfile # Use Dockerfile inside the backend directory
+    ports:
+      - "5000:5000"
+    networks:
+      - statflix-network
+
+networks:
+  statflix-network:
+    driver: bridge
