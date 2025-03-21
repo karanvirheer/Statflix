@@ -10,10 +10,11 @@ services:
     networks:
       - statflix-network
     volumes:
-      - ./frontend:/app # Mount local frontend code to container
-      - /app/node_modules # Prevents overwriting node_modules inside the container
+      - ./frontend:/usr/src/app # Mount local frontend code to container
+      - /usr/src/app/node_modules # Prevents overwriting node_modules inside the container
     environment:
       - CHOKIDAR_USEPOLLING=true # Enables hot reloading inside Docker
+    command: npm start
 
   backend:
     build:
@@ -24,8 +25,8 @@ services:
     networks:
       - statflix-network
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
     environment:
       - NODE_ENV=development
 
