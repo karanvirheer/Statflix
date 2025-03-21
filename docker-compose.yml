@@ -1,22 +1,33 @@
 version: "3.8"
+
 services:
   frontend:
     build:
-      context: ./frontend # Path to the frontend directory
-      dockerfile: Dockerfile # Use Dockerfile inside the frontend directory
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     networks:
       - statflix-network
+    volumes:
+      - ./frontend:/app # Mount local frontend code to container
+      - /app/node_modules # Prevents overwriting node_modules inside the container
+    environment:
+      - CHOKIDAR_USEPOLLING=true # Enables hot reloading inside Docker
 
   backend:
     build:
-      context: ./backend # Path to the backend directory
-      dockerfile: Dockerfile # Use Dockerfile inside the backend directory
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
     networks:
       - statflix-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
 
 networks:
   statflix-network:
