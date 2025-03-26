@@ -1,13 +1,16 @@
 import React from "react";
-import Carousel from "./components/Carousel";
-import Background from "./components/Background";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import CarouselPage from "./pages/CarouselPage";
 
 function App() {
     return (
-        <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
-            <Background />
-            <Carousel />
-        </div>
+        <Router>
+            <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/carousel" element={<CarouselPage />} />
+            </Routes>
+        </Router>
     );
 }
 

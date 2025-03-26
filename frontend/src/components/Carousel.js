@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Background from "../components/Background";
 import "../styles/Carousel.css";
 
 const Carousel = () => {
@@ -27,20 +28,23 @@ const Carousel = () => {
     };
 
     return (
-        <div className="carousel">
-            {items.map((item, i) => (
-                <div key={i} className={`carousel-item ${i === index ? "active" : ""}`}>
-                    <div className="carousel-image">
-                        <img src={item.image} alt={item.title} />
+        <div className="carousel-container">
+            <Background /> {/* Background SVG added here */}
+            <div className="carousel">
+                {items.map((item, i) => (
+                    <div key={i} className={`carousel-item ${i === index ? "active" : ""}`}>
+                        <div className="carousel-image">
+                            <img src={item.image} alt={item.title} />
+                        </div>
+                        <div className="carousel-content">
+                            <h2>{item.title}</h2>
+                            <p>{item.value}</p>
+                        </div>
                     </div>
-                    <div className="carousel-content">
-                        <h2>{item.title}</h2>
-                        <p>{item.value}</p>
-                    </div>
-                </div>
-            ))}
-            <button className="prev" onClick={() => moveSlide(-1)}>&#10094;</button>
-            <button className="next" onClick={() => moveSlide(1)}>&#10095;</button>
+                ))}
+                <button className="prev" onClick={() => moveSlide(-1)}>&#10094;</button>
+                <button className="next" onClick={() => moveSlide(1)}>&#10095;</button>
+            </div>
         </div>
     );
 };
