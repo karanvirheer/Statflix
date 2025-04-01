@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import BackgroundHome from "../components/BackgroundHome"; 
+import BackgroundHome from "../components/BackgroundHome";
+import logo from "../assets/statflix_logo-01.svg";  
 
 function HomePage() {
     const navigate = useNavigate();
@@ -24,7 +25,7 @@ function HomePage() {
             textAlign: "center",
             overflow: "hidden",
         }}>
-            <BackgroundHome /> 
+            <BackgroundHome />
 
             <div style={{
                 position: "relative",
@@ -40,9 +41,8 @@ function HomePage() {
                 alignItems: "center",
                 boxShadow: "0px 10px 30px rgba(0,0,0,0.5)",
             }}>
-                <h1 style={{ color: "red", fontSize: "4rem", fontWeight: "bold", marginBottom: "10px" }}>
-                    STATFLIX
-                </h1>
+                <img src={logo} alt="Statflix Logo" style={{ width: "70%", maxWidth: "300px", marginBottom: "10px" }} />
+
                 <p style={{ fontSize: "1.2rem", marginBottom: "20px" }}>
                     Your streaming habits, visualized.
                 </p>
