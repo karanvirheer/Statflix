@@ -21,7 +21,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5001:5001"
+      - "3001:3001"
     networks:
       - statflix-network
     volumes:
@@ -29,6 +29,9 @@ services:
       - /usr/src/app/node_modules
     environment:
       - NODE_ENV=development
+      - API_KEY=${API_KEY}
+      - PORT=${PORT}
+    command: nodemon server.js # Use nodemon for hot reloading
 
 networks:
   statflix-network:
