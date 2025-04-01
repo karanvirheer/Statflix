@@ -10,11 +10,14 @@ COPY package*.json ./
 # Install project dependencies
 RUN npm install
 
+# Install nodemon globally
+RUN npm install -g nodemon
+
 # Copy the rest of the application code into the container
 COPY . .
 
 # Expose the port your server will run on
-EXPOSE 3000
+EXPOSE 3001
 
 # Command to run the application
-CMD ["node", "server.js"]
+CMD ["nodemon", "server.js"]
