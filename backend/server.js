@@ -33,18 +33,54 @@ function getShowName(rawTitle) {
     case rawTitle.includes(":"):
       parsedTitle = rawTitle.split(/(?=\s*:)/i);
       break;
-  }
-  // The title is everything before "Season"
-  let showTitle = parsedTitle[0].trim();
 
-  console.log(showTitle); // Output: "Formula 1: Drive to Survive:"
+  
+    default:
+      // If no case matches, just keep the raw title as parsedTitle
+      parsedTitle = [rawTitle]; // This ensures it's an array with the raw title
+      break;
+  }
+  
+  let showTitle = parsedTitle[0].trim(); 
+  return showTitle;
 }
 
-async function processCSV(filePath) {
-  const titles = [];
-  const cache = {}; // Simple in-memory cache
-  getShowName("");
-  return;
+
+// Parse the CSV file
+function parseCSV() {
+  const results = []; // store the empty arrays
+
+  fs.createReadStream(filePath) // createReadStream is how you read files in node.js
+    .pipe(csv()) // pipe the stream to the csv-parser in node.js to parse the data in the file 
+    .on('data', (row) => { // data event is fired every time new row is parsed
+      // check if the 'title' column exists in the row (column name is 'Title' -> case sensitive)
+      if (row.Title) { 
+        const showName = getShowName(row.Title); // extract the title using the getShowName function
+        results.push(showName); // push the title into the results array
+      }
+    })
+    .on('end', () => { // end event fired when all rows are processed 
+      console.log("CSV file successfully processed!");
+      console.log(results); // this will output the parsed titles
+    });
+}
+
+parseCSV();
+
+
+
+
+
+
+
+
+
+
+// async function processCSV(filePath) {
+//   const titles = [];
+//   const cache = {}; // Simple in-memory cache
+//   getShowName("");
+//   return;
 
   // return new Promise((resolve, reject) => {
   //   fs.createReadStream(filePath)
@@ -98,8 +134,8 @@ async function processCSV(filePath) {
   //       }
   //     });
   // });
-}
+// }
 
-processCSV(filePath).catch((err) => {
-  console.error("Failed to process CSV:", err);
-});
+// processCSV(filePath).catch((err) => {
+//   console.error("Failed to process CSV:", err);
+// });
