@@ -32,7 +32,19 @@ const searchMovie = async (query) => {
   }
 };
 
+// https://developer.themoviedb.org/reference/tv-series-details
+const tvDetails = async (series_id) => {
+  try {
+    const res = await tmdb.get("/tv/" + String(series_id));
+    return res.data;
+  } catch (err) {
+    console.error("Error fetching TV show:", err.response?.data || err.message);
+    throw err;
+  }
+};
+
 module.exports = {
   searchTVShow,
   searchMovie,
+  tvDetails,
 };
