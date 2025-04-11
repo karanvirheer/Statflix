@@ -44,38 +44,83 @@ async function getTitle(rawTitle) {
 
 // Parses the NetflixViewingActivity.csv
 // Returns an array of [ { tmdbId: $(tmdbId) }, ... ]
+// async function parseCSV() {
+//   const results = [];
+//   const promises = [];
+//   const titles = [];
+
+//   return new Promise((resolve, reject) => {
+//     fs.createReadStream(filePath)
+//       .pipe(csv())
+//       .on("data", (row) => {
+//         if (row.Title) {
+//           const promise = getTitle(row.Title)
+//             .then((title) => titles.push(title))
+//             .catch(console.error); // optional error handling
+//           promises.push(promise);
+//         }
+//       })
+//       .on("end", async () => {
+//         await Promise.all(promises);
+//         console.log("CSV file successfully processed!");
+//         for (const title of titles){
+//           console.log(title);
+//           getID(title).then((id) => results.push(id))
+//         }
+//         console.log(results);
+//         resolve(results); // resolve with results if needed
+//       })
+//       .on("error", reject); // catch stream errors
+//   });
+// }
+
+
+// parseCSV();
+
+
 async function parseCSV() {
   const results = [];
-  const promises = []; // Collect all promises
+  const titlePromises = [];
 
-  fs.createReadStream(filePath) // Read file
-    .pipe(csv()) // Parse CSV file
-    .on("data", (row) => {
-      // Triggered on every row
-      if (row.Title) {
-        const promise = getTitle(row.Title)
-          .then((title) => {
-            return getID(title);
-          })
-          .then((id) => {
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on("data", (row) => {
+        if (row.Title) {
+          const titlePromise = getTitle(row.Title);
+          titlePromises.push(titlePromise);
+        }
+      })
+      .on("end", async () => {
+        try {
+          const titles = await Promise.all(titlePromises);
+          const results = [];
+      
+          for (const title of titles) {
+            const id = await getID(title);
             results.push(id);
-          });
-        promises.push(promise); // Add the promise to the promises array
-      }
-    })
-    .on("end", async () => {
-      // When parsing ends
-      await Promise.all(promises); // Wait for all async operations to finish
-      console.log("CSV file successfully processed!");
-      console.log(results); // Log the results after everything is finished
-    });
+          }
+      
+          console.log("✅ CSV processing done.");
+          console.log(results);
+          resolve(results);
+        } catch (error) {
+          reject(error);
+        }
+      });
+  });
 }
-
 parseCSV();
 
-// Calls the TMDb API to get the JSON for the show based on the parsedTitle
-// Returns the TMDb ID
 async function getID(parsedTitle) {
+  // Check cache first
+  if (cache[parsedTitle]) {
+    console.log(`✅ Cache hit: ${parsedTitle}`);
+    return cache[parsedTitle]; // Return cached result
+    
+  }
+
+  // Not in cache, make API calls
   let data = await searchTVShow(parsedTitle);
 
   if (!data?.results?.length) {
@@ -88,10 +133,15 @@ async function getID(parsedTitle) {
       title: parsedTitle,
       tmdbId: match.id,
     };
+    console.log(result);
+    cache[parsedTitle] = result; // Save result to cache
     return result;
   }
 
+  // Optional delay to avoid hammering the API in case of no result
   await new Promise((r) => setTimeout(r, 300));
 
+  cache[parsedTitle] = null; // Still cache null to avoid repeated failed lookups
   return null;
 }
+
