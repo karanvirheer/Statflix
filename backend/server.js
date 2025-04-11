@@ -4,10 +4,11 @@ const { searchTVShow, searchMovie, tvDetails } = require("./tmdb");
 require("dotenv").config();
 
 const filePath = "./ViewingActivity.csv"; // CSV should be in same folder
+const cache = {};
 
-// Helper Function
 // Extracts the valid title from the string title
-async function getShowName(rawTitle) {
+// Returns the
+async function getTitle(rawTitle) {
   // title =  "Formula 1: Drive to Survive: Season 1";
   let parsedTitle = "";
 
@@ -33,39 +34,37 @@ async function getShowName(rawTitle) {
     case rawTitle.includes(":"):
       parsedTitle = rawTitle.split(/(?=\s*:)/i);
       break;
-
-  
     default:
       // If no case matches, just keep the raw title as parsedTitle
       parsedTitle = [rawTitle]; // This ensures it's an array with the raw title
       break;
   }
-  
-  let showTitle = parsedTitle[0].trim();  
-  return await getTVShowID(showTitle);
+  return parsedTitle[0].trim().replace(":", "");
 }
 
-
-// Function to parse the CSV file
+// Parses the NetflixViewingActivity.csv
+// Returns an array of [ { tmdbId: $(tmdbId) }, ... ]
 async function parseCSV() {
-  const results = []; // Store the results
-
+  const results = [];
   const promises = []; // Collect all promises
 
   fs.createReadStream(filePath) // Read file
     .pipe(csv()) // Parse CSV file
-    .on('data', (row) => { // Triggered on every row
+    .on("data", (row) => {
+      // Triggered on every row
       if (row.Title) {
-        const promise = getShowName(row.Title) // Get show name from each row
-          .then((showName) => {
-            if (showName) {
-              results.push(showName); // Push the result to the array
-            }
+        const promise = getTitle(row.Title)
+          .then((title) => {
+            return getID(title);
+          })
+          .then((id) => {
+            results.push(id);
           });
         promises.push(promise); // Add the promise to the promises array
       }
     })
-    .on('end', async () => { // When parsing ends
+    .on("end", async () => {
+      // When parsing ends
       await Promise.all(promises); // Wait for all async operations to finish
       console.log("CSV file successfully processed!");
       console.log(results); // Log the results after everything is finished
@@ -74,8 +73,9 @@ async function parseCSV() {
 
 parseCSV();
 
-
-async function getTVShowID(parsedTitle){
+// Calls the TMDb API to get the JSON for the show based on the parsedTitle
+// Returns the TMDb ID
+async function getID(parsedTitle) {
   let data = await searchTVShow(parsedTitle);
 
   if (!data?.results?.length) {
@@ -85,79 +85,13 @@ async function getTVShowID(parsedTitle){
   const match = data?.results?.[0];
   if (match) {
     const result = {
+      title: parsedTitle,
       tmdbId: match.id,
     };
     return result;
   }
+
+  await new Promise((r) => setTimeout(r, 300));
+
   return null;
 }
-
-
-
-
-
-
-
-// async function processCSV(filePath) {
-//   const titles = [];
-//   const cache = {}; // Simple in-memory cache
-//   getShowName("");
-//   return;
-
-  // return new Promise((resolve, reject) => {
-  //   fs.createReadStream(filePath)
-  //     .pipe(csv())
-  //     .on("data", (row) => {
-  //       if (row["Title"]) titles.push(getShowName(row["Title"]));
-  //     })
-  //     .on("end", async () => {
-  //       try {
-  //         const results = [];
-  //
-  //         for (const title of titles) {
-  //           if (cache[title]) {
-  //             console.log(`Cache hit for: ${title}`);
-  //             results.push(cache[title]);
-  //             continue;
-  //           }
-  //
-  //           console.log("Searching for:", title);
-  //           let data = await searchTVShow(title);
-  //
-  //           if (!data?.results?.length) {
-  //             data = await searchMovie(title);
-  //           }
-  //
-  //           const match = data?.results?.[0];
-  //           if (match) {
-  //             const result = {
-  //               title,
-  //               type: match.media_type || (match.first_air_date ? "tv" : "movie"),
-  //               tmdbId: match.id,
-  //               popularity: match.popularity,
-  //               genres: match.genre_ids,
-  //               country: match.origin_country,
-  //             };
-  //             cache[title] = result; // Save to cache
-  //             console.log(await tvDetails(match.id));
-  //             results.push(result);
-  //           } else {
-  //             console.warn(`No match found for: ${title}`);
-  //           }
-  //
-  //           await new Promise((r) => setTimeout(r, 300));
-  //         }
-  //
-  //         console.log("Final Results:\n", JSON.stringify(results, null, 2));
-  //         resolve();
-  //       } catch (err) {
-  //         console.error("Error during processing:", err);
-  //         reject(err);
-  //       }
-  //     });
-  // });
-// }
-
-// processCSV(filePath).catch((err) => {
-//   console.error("Failed to process CSV:", err);
-// });
