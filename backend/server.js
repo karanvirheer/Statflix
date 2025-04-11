@@ -7,7 +7,7 @@ const filePath = "./ViewingActivity.csv"; // CSV should be in same folder
 
 // Helper Function
 // Extracts the valid title from the string title
-function getShowName(rawTitle) {
+async function getShowName(rawTitle) {
   // title =  "Formula 1: Drive to Survive: Season 1";
   let parsedTitle = "";
 
@@ -41,34 +41,56 @@ function getShowName(rawTitle) {
       break;
   }
   
-  let showTitle = parsedTitle[0].trim(); 
-  return showTitle;
+  let showTitle = parsedTitle[0].trim();  
+  return await getTVShowID(showTitle);
 }
 
 
-// Parse the CSV file
-function parseCSV() {
-  const results = []; // store the empty arrays
+// Function to parse the CSV file
+async function parseCSV() {
+  const results = []; // Store the results
 
-  fs.createReadStream(filePath) // createReadStream is how you read files in node.js
-    .pipe(csv()) // pipe the stream to the csv-parser in node.js to parse the data in the file 
-    .on('data', (row) => { // data event is fired every time new row is parsed
-      // check if the 'title' column exists in the row (column name is 'Title' -> case sensitive)
-      if (row.Title) { 
-        const showName = getShowName(row.Title); // extract the title using the getShowName function
-        results.push(showName); // push the title into the results array
+  const promises = []; // Collect all promises
+
+  fs.createReadStream(filePath) // Read file
+    .pipe(csv()) // Parse CSV file
+    .on('data', (row) => { // Triggered on every row
+      if (row.Title) {
+        const promise = getShowName(row.Title) // Get show name from each row
+          .then((showName) => {
+            if (showName) {
+              results.push(showName); // Push the result to the array
+            }
+          });
+        promises.push(promise); // Add the promise to the promises array
       }
     })
-    .on('end', () => { // end event fired when all rows are processed 
+    .on('end', async () => { // When parsing ends
+      await Promise.all(promises); // Wait for all async operations to finish
       console.log("CSV file successfully processed!");
-      console.log(results); // this will output the parsed titles
+      console.log(results); // Log the results after everything is finished
     });
 }
 
 parseCSV();
 
 
+async function getTVShowID(parsedTitle){
+  let data = await searchTVShow(parsedTitle);
 
+  if (!data?.results?.length) {
+    data = await searchMovie(parsedTitle);
+  }
+
+  const match = data?.results?.[0];
+  if (match) {
+    const result = {
+      tmdbId: match.id,
+    };
+    return result;
+  }
+  return null;
+}
 
 
 
