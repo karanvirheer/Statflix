@@ -1,17 +1,25 @@
 const fs = require("fs");
 const csv = require("csv-parser");
-const { searchTVShow, searchMovie, tvDetails } = require("./tmdb");
+const {
+  searchTVShow,
+  searchMovie,
+  getTVDetails,
+  getMovieDetails,
+} = require("./tmdb");
 require("dotenv").config();
 
 const filePath = "./ViewingActivity.csv"; // CSV should be in same folder
 const cache = {};
 
-// Extracts the valid title from the string title
-// Returns the
+/**
+ * Parses the CSV Title and gets the TMDb Searchable Title
+ *
+ * @param {string} rawTitle - Title from CSV
+ * @returns {string} Formatted and searchable TMDb Title
+ * Reference: https://developer.themoviedb.org/reference/search-tv
+ */
 async function getTitle(rawTitle) {
-  // title =  "Formula 1: Drive to Survive: Season 1";
   let parsedTitle = "";
-
   switch (true) {
     case rawTitle.includes("Season"):
       parsedTitle = rawTitle.split(/(?=\s*Season)/i);
@@ -42,46 +50,40 @@ async function getTitle(rawTitle) {
   return parsedTitle[0].trim().replace(":", "");
 }
 
-// Parses the NetflixViewingActivity.csv
-// Returns an array of [ { tmdbId: $(tmdbId) }, ... ]
-// async function parseCSV() {
-//   const results = [];
-//   const promises = [];
-//   const titles = [];
+/**
+ * Parses the CSV Date and gets the DateTime Object
+ *
+ * @param {string} rawDate - Date from CSV
+ * @returns {DateTime Object} Date the title was watched
+ */
+async function getDate(rawDate) {
+  return rawDate;
+}
 
-//   return new Promise((resolve, reject) => {
-//     fs.createReadStream(filePath)
-//       .pipe(csv())
-//       .on("data", (row) => {
-//         if (row.Title) {
-//           const promise = getTitle(row.Title)
-//             .then((title) => titles.push(title))
-//             .catch(console.error); // optional error handling
-//           promises.push(promise);
-//         }
-//       })
-//       .on("end", async () => {
-//         await Promise.all(promises);
-//         console.log("CSV file successfully processed!");
-//         for (const title of titles){
-//           console.log(title);
-//           getID(title).then((id) => results.push(id))
-//         }
-//         console.log(results);
-//         resolve(results); // resolve with results if needed
-//       })
-//       .on("error", reject); // catch stream errors
-//   });
-// }
-
-
-// parseCSV();
-
-
+/**
+ * Parses a user's Netflix ViewingActivity CSV file and extracts searchable TMDb titles.
+ *
+ * Reads the "Title" column from the CSV file and uses `getTitle()` to normalize titles.
+ * Then calls `getID()` for each parsed title to retrieve the corresponding TMDb ID
+ * (via TV or Movie search), while caching results to minimize API calls.
+ *
+ * @async
+ * @function
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects,
+ * each containing a parsed title and its corresponding TMDb ID, or `null` if no match was found.
+ *
+ * Example return:
+ * [
+ *   { title: "Breaking Bad", tmdbId: 1396 },
+ *   { title: "Stranger Things", tmdbId: 66732 },
+ *   ...
+ * ]
+ *
+ * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
+ */
 async function parseCSV() {
-  const results = [];
   const titlePromises = [];
-
+  const datePromises = [];
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
@@ -90,20 +92,33 @@ async function parseCSV() {
           const titlePromise = getTitle(row.Title);
           titlePromises.push(titlePromise);
         }
+        if (row.Date) {
+          const datePromise = getDate(row.Date);
+          datePromises.push(datePromise);
+        }
       })
       .on("end", async () => {
         try {
           const titles = await Promise.all(titlePromises);
-          const results = [];
-      
+          const dates = await Promise.all(datePromises);
+          const titleResults = [];
+          const dateResults = [];
+
           for (const title of titles) {
-            const id = await getID(title);
-            results.push(id);
+            const id = await getData(title);
+            titleResults.push(id);
           }
-      
+
+          for (const date of dates) {
+            // const id = await getID(title);
+            dateResults.push(date);
+          }
+
           console.log("✅ CSV processing done.");
-          console.log(results);
-          resolve(results);
+          // console.log(dateResults);
+          // console.log(titleResults);
+          resolve(titleResults);
+          resolve(dateResults);
         } catch (error) {
           reject(error);
         }
@@ -112,27 +127,89 @@ async function parseCSV() {
 }
 parseCSV();
 
-async function getID(parsedTitle) {
+/**
+ * Gets the TMDb data for a title.
+ *
+ * @param {string} parsedTitle - TMDb Searchable Title
+ * @returns {dict}
+ * Reference: https://developer.themoviedb.org/reference/search-tv
+ *
+ * Example return:
+ * 
+{
+  type: 0,
+  title: 'ONE PIECE',
+  id: 37854,
+  genres: [
+    { id: 10759, name: 'Action & Adventure' },
+    { id: 35, name: 'Comedy' },
+    { id: 16, name: 'Animation' }
+  ],
+  episode_run_time: 24,
+  first_air_date: '1999-10-20',
+  number_of_episodes: 1128
+}
+
+{
+  type: 1,
+  title: 'Glass Onion',
+  id: 661374,
+  genres: [
+    { id: 35, name: 'Comedy' },
+    { id: 80, name: 'Crime' },
+    { id: 9648, name: 'Mystery' }
+  ]
+}
+ *
+ *
+ */
+async function getData(parsedTitle) {
+  // 0 - TV Show [ Default ]
+  // 1 - Movie
+  let type = 0;
+
   // Check cache first
   if (cache[parsedTitle]) {
-    console.log(`✅ Cache hit: ${parsedTitle}`);
+    // console.log(`✅ Cache hit: ${parsedTitle}`);
     return cache[parsedTitle]; // Return cached result
-    
   }
 
-  // Not in cache, make API calls
+  // Not in cache
+  // Search TV/Movie using API
   let data = await searchTVShow(parsedTitle);
-
   if (!data?.results?.length) {
     data = await searchMovie(parsedTitle);
+
+    // Set flag that this title is a Movie
+    type = 1;
   }
 
   const match = data?.results?.[0];
   if (match) {
-    const result = {
-      title: parsedTitle,
-      tmdbId: match.id,
-    };
+    let detailsData = {};
+    let result = {};
+
+    if (type == 0) {
+      detailsData = await getTVDetails(match.id);
+      result = {
+        type: type,
+        title: parsedTitle,
+        id: match.id,
+        genres: detailsData.genres,
+        episode_run_time: await getEpisodeRunTime(detailsData),
+        first_air_date: match.first_air_date,
+        number_of_episodes: detailsData.number_of_episodes,
+      };
+    } else {
+      detailsData = await getMovieDetails(match.id);
+      result = {
+        type: type,
+        title: parsedTitle,
+        id: match.id,
+        genres: detailsData.genres,
+      };
+    }
+
     console.log(result);
     cache[parsedTitle] = result; // Save result to cache
     return result;
@@ -141,7 +218,23 @@ async function getID(parsedTitle) {
   // Optional delay to avoid hammering the API in case of no result
   await new Promise((r) => setTimeout(r, 300));
 
-  cache[parsedTitle] = null; // Still cache null to avoid repeated failed lookups
+  // Still cache null to avoid repeated failed lookups
+  cache[parsedTitle] = null;
   return null;
 }
 
+/**
+ * Helper Function
+ *
+ * Gets the episode run time for a TV Show
+ *
+ * @param {string} detailsData - Output from getTVDetails() API Call
+ * @returns {int} Runtime of the episode
+ */
+async function getEpisodeRunTime(detailsData) {
+  if (detailsData.episode_run_time.length == 0) {
+    return detailsData.last_episode_to_air.runtime;
+  } else {
+    return detailsData.episode_run_time[0];
+  }
+}
