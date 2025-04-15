@@ -8,8 +8,11 @@ const {
 } = require("./tmdb");
 require("dotenv").config();
 
-const filePath = "./ViewingActivity.csv"; // CSV should be in same folder
+// CSV should be in same folder
+const filePath = "./ViewingActivity.csv";
+// Titles Cache
 const cache = {};
+// User Statistics Cache
 const userStats = {
   // TMDb ID or Title String?
   most_binged_show: "",
@@ -171,6 +174,7 @@ async function getData(parsedTitle) {
     let detailsData = {};
     let result = {};
 
+    // TV Show
     if (type == 0) {
       detailsData = await getTVDetails(match.id);
       result = {
@@ -182,6 +186,8 @@ async function getData(parsedTitle) {
         first_air_date: match.first_air_date,
         number_of_episodes: detailsData.number_of_episodes,
       };
+
+      // Movie
     } else {
       detailsData = await getMovieDetails(match.id);
       result = {
@@ -192,7 +198,13 @@ async function getData(parsedTitle) {
       };
     }
 
-    console.log(result);
+    // =========================
+    // STATISTICS FUNCTION CALLS
+    // =========================
+    logTopGenres(detailsData.genres);
+
+    // console.log(result);
+    // console.log(userStats["top_genres"]);
     cache[parsedTitle] = result; // Save result to cache
     return result;
   }
@@ -261,6 +273,10 @@ async function parseCSV() {
           }
 
           console.log("✅ CSV processing done.");
+
+          getTopGenres();
+          getTotalUniqueTitlesWatched(titlePromises.length);
+
           // console.log(dateResults);
           // console.log(titleResults);
           resolve(titleResults);
@@ -279,3 +295,39 @@ parseCSV();
  *        STATISTICS FUNCTIONS
  * ==============================
  */
+
+/**
+ * Updates userStats["top_genres"] to keep track of the occurrences of each genre.
+ *
+ * @param {string} genreArray - Genres of current title
+ * @returns {string} Formatted and searchable TMDb Title
+ * Reference: https://developer.themoviedb.org/reference/search-tv
+ */
+function logTopGenres(genreArray) {
+  for (const genre of genreArray) {
+    if (genre.name in userStats["top_genres"]) {
+      userStats["top_genres"][genre.name] += 1;
+    } else {
+      userStats["top_genres"][genre.name] = 1;
+    }
+  }
+}
+
+/**
+ * Calculates the Top 5 Genres based on the userStats
+ */
+function getTopGenres() {
+  let topGenres = [];
+  for (const [key, value] of Object.entries(userStats["top_genres"])) {
+    console.log(`${key}: ${value}`);
+    console.log("=================");
+  }
+}
+
+/**
+ * Updates Total Unique Titles Watched in UserStats
+ * @param {uniqueTitles} - Total unique titles watched
+ */
+function getTotalUniqueTitlesWatched(uniqueTitles) {
+  userStats["total_unique_titles_watched"] = uniqueTitles;
+}
