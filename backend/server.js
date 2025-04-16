@@ -9,7 +9,8 @@ const {
 require("dotenv").config();
 
 // CSV should be in same folder
-const filePath = "./ViewingActivity.csv";
+// const filePath = "./ViewingActivity.csv";
+const filePath = "./big.csv";
 // Titles Cache
 const cache = {};
 // User Statistics Cache
@@ -18,7 +19,7 @@ const userStats = {
   most_binged_show: "",
 
   // int
-  total_unique_titles_watched: 0,
+  unique_titles_watched: new Set(),
 
   // dict
   // { "Mystery": 30, "Horror": 20, ...}
@@ -57,6 +58,18 @@ async function getEpisodeRunTime(detailsData) {
   } else {
     return detailsData.episode_run_time[0];
   }
+}
+
+/**
+ * Helper Function
+ *
+ * Verifies if the title is a Movie or a TV Show
+ *
+ * @param {dict} data - Output from searchTVShow() API Call
+ * @returns {bool} True - Movie | False - TV Show
+ */
+function verifyMovieOrShow(data) {
+  return data?.first_air_date === "";
 }
 
 /*
@@ -162,9 +175,9 @@ async function getData(parsedTitle) {
   // Not in cache
   // Search TV/Movie using API
   let data = await searchTVShow(parsedTitle);
-  if (!data?.results?.length) {
+  // Check if it is truly a TV Show
+  if (verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
     data = await searchMovie(parsedTitle);
-
     // Set flag that this title is a Movie
     type = 1;
   }
@@ -202,6 +215,7 @@ async function getData(parsedTitle) {
     // STATISTICS FUNCTION CALLS
     // =========================
     logTopGenres(detailsData.genres);
+    logUniqueTitlesWatched(match.id);
 
     // console.log(result);
     // console.log(userStats["top_genres"]);
@@ -268,14 +282,18 @@ async function parseCSV() {
           }
 
           for (const date of dates) {
+            // change below to be for dates or something
             // const id = await getID(title);
             dateResults.push(date);
           }
 
           console.log("✅ CSV processing done.");
 
+          // =========================
+          // STATISTICS FUNCTION CALLS
+          // =========================
           getTopGenres();
-          getTotalUniqueTitlesWatched(titlePromises.length);
+          getUniqueTitlesWatched();
 
           // console.log(dateResults);
           // console.log(titleResults);
@@ -318,6 +336,9 @@ function logTopGenres(genreArray) {
  */
 function getTopGenres() {
   let topGenres = [];
+  console.log("=====================");
+  console.log("      TOP GENRES     ");
+  console.log("=====================");
   for (const [key, value] of Object.entries(userStats["top_genres"])) {
     console.log(`${key}: ${value}`);
     console.log("=================");
@@ -328,6 +349,10 @@ function getTopGenres() {
  * Updates Total Unique Titles Watched in UserStats
  * @param {uniqueTitles} - Total unique titles watched
  */
-function getTotalUniqueTitlesWatched(uniqueTitles) {
-  userStats["total_unique_titles_watched"] = uniqueTitles;
+function getUniqueTitlesWatched() {
+  console.log(userStats["unique_titles_watched"].size);
+}
+
+function logUniqueTitlesWatched(id) {
+  userStats["unique_titles_watched"].add(id);
 }
