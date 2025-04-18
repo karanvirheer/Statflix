@@ -8,9 +8,19 @@ const {
 } = require("./tmdb");
 require("dotenv").config();
 
+/*
+ * ==============================
+ *           GLOBALS
+ * ==============================
+ */
+
 // CSV should be in same folder
 // const filePath = "./ViewingActivity.csv";
 const filePath = "./big.csv";
+
+// const filePath = "./tests/Test01_Empty.csv";
+// const filePath = "./tests/Test02_WrongTitles.csv";
+
 // Titles Cache
 const cache = {};
 // User Statistics Cache
@@ -43,6 +53,20 @@ const userStats = {
   // int
   num_shows_completed: 0,
 };
+
+/*
+ * ==============================
+ *          MAIN FUNCTION
+ * ==============================
+ */
+
+main();
+
+function main() {
+  console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
+  parseCSV();
+  console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
+}
 
 /*
  * ==============================
@@ -91,7 +115,7 @@ function verifyMovieOrShow(data) {
  * @returns {string} Formatted and searchable TMDb Title
  * Reference: https://developer.themoviedb.org/reference/search-tv
  */
-async function getTitle(rawTitle) {
+function getTitle(rawTitle) {
   let parsedTitle = "";
   switch (true) {
     case rawTitle.includes("Season"):
@@ -117,7 +141,8 @@ async function getTitle(rawTitle) {
       break;
     default:
       // If no case matches, just keep the raw title as parsedTitle
-      parsedTitle = [rawTitle]; // This ensures it's an array with the raw title
+      // This ensures it's an array with the raw title
+      parsedTitle = [rawTitle];
       break;
   }
   return parsedTitle[0].trim().replace(":", "");
@@ -223,13 +248,13 @@ async function getData(parsedTitle) {
     logTopGenres(detailsData.genres);
     logUniqueTitlesWatched(match.id);
 
-    // console.log(result);
-    // console.log(userStats["top_genres"]);
     cache[parsedTitle] = result; // Save result to cache
     return result;
   }
 
   // Optional delay to avoid hammering the API in case of no result
+  // Pause execution until the Promise is resolved
+  // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
   await new Promise((r) => setTimeout(r, 300));
 
   // Still cache null to avoid repeated failed lookups
@@ -258,36 +283,34 @@ async function getData(parsedTitle) {
  *
  * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
  */
-async function parseCSV() {
-  const titlePromises = [];
-  const datePromises = [];
+function parseCSV() {
+  const titleList = [];
+  const dateList = [];
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (row) => {
         if (row.Title) {
-          const titlePromise = getTitle(row.Title);
-          titlePromises.push(titlePromise);
+          const title = getTitle(row.Title);
+          titleList.push(title);
         }
         if (row.Date) {
-          const datePromise = getDate(row.Date);
-          datePromises.push(datePromise);
+          const date = getDate(row.Date);
+          dateList.push(date);
         }
       })
       .on("end", async () => {
         try {
-          const titles = await Promise.all(titlePromises);
-          const dates = await Promise.all(datePromises);
           const titleResults = [];
           const dateResults = [];
 
-          for (const title of titles) {
+          for (const title of titleList) {
             const data = await getData(title);
             titleResults.push(data);
           }
 
-          for (const date of dates) {
+          for (const date of dateList) {
             // change below to be for dates or something
             // const id = await getID(title);
             dateResults.push(date);
@@ -308,8 +331,6 @@ async function parseCSV() {
       });
   });
 }
-
-parseCSV();
 
 /*
  * ==============================
