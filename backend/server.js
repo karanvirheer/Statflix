@@ -65,7 +65,7 @@ main();
 function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
   parseCSV();
-  console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
+  // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
 /*
@@ -77,12 +77,25 @@ function main() {
 /**
  * Helper Function
  *
+ * Formatted print of an item.
+ *
+ * @param {<String>} item - Item to be printed
+ */
+function print(item) {
+  console.log("================================");
+  console.log(item);
+  console.log("================================");
+}
+
+/**
+ * Helper Function
+ *
  * Gets the episode run time for a TV Show
  *
  * @param {string} detailsData - Output from getTVDetails() API Call
  * @returns {int} Runtime of the episode
  */
-async function getEpisodeRunTime(detailsData) {
+function getEpisodeRunTime(detailsData) {
   if (detailsData.episode_run_time.length == 0) {
     return detailsData.last_episode_to_air.runtime;
   } else {
@@ -162,8 +175,7 @@ async function getDate(rawDate) {
  * Gets the TMDb data for a title.
  *
  * @param {string} parsedTitle - TMDb Searchable Title
- * @returns {dict}
- * Reference: https://developer.themoviedb.org/reference/search-tv
+ * @returns {Promise<dict>} Information related to the title
  *
  * Example return:
  * 
