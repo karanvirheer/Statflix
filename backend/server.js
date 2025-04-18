@@ -15,15 +15,21 @@ const filePath = "./big.csv";
 const cache = {};
 // User Statistics Cache
 const userStats = {
+  // dict
+  // EVERY Genre the user has watched tallied up
+  // { "Mystery": 30, "Horror": 20, ...}
+  genres: {},
+
+  // array
+  // Top 3 Genres of User
+  // [ [ 'Drama', 175 ], [ 'Comedy', 129 ], [ 'Romance', 64 ] ]
+  top_genres: [],
+
   // TMDb ID or Title String?
   most_binged_show: "",
 
   // int
   unique_titles_watched: new Set(),
-
-  // dict
-  // { "Mystery": 30, "Horror": 20, ...}
-  top_genres: {},
 
   // int
   total_watch_time: 0,
@@ -292,11 +298,8 @@ async function parseCSV() {
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
-          getTopGenres();
-          getUniqueTitlesWatched();
+          printUserStats();
 
-          // console.log(dateResults);
-          // console.log(titleResults);
           resolve(titleResults);
           resolve(dateResults);
         } catch (error) {
@@ -315,44 +318,66 @@ parseCSV();
  */
 
 /**
+ * Prints out all the User Statistics to the console.
+ */
+function printUserStats() {
+  if (userStats.top_genres.length > 0) {
+    console.log("=======================");
+    console.log("      TOP GENRES     ");
+    console.log("=======================");
+    getTopGenres();
+  }
+
+  if (userStats.unique_titles_watched.size > 0) {
+    console.log("=======================");
+    console.log(" UNIQUE TITLES WATCHED ");
+    console.log("=======================");
+    getUniqueTitlesWatched();
+    console.log("=======================");
+  }
+}
+
+/**
  * Updates userStats["top_genres"] to keep track of the occurrences of each genre.
  *
  * @param {string} genreArray - Genres of current title
- * @returns {string} Formatted and searchable TMDb Title
- * Reference: https://developer.themoviedb.org/reference/search-tv
  */
 function logTopGenres(genreArray) {
   for (const genre of genreArray) {
-    if (genre.name in userStats["top_genres"]) {
-      userStats["top_genres"][genre.name] += 1;
+    if (genre.name in userStats["genres"]) {
+      userStats["genres"][genre.name] += 1;
     } else {
-      userStats["top_genres"][genre.name] = 1;
+      userStats["genres"][genre.name] = 1;
     }
   }
+
+  userStats["top_genres"] = Object.entries(userStats["genres"])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
 }
 
 /**
  * Calculates the Top 5 Genres based on the userStats
  */
 function getTopGenres() {
-  let topGenres = [];
-  console.log("=====================");
-  console.log("      TOP GENRES     ");
-  console.log("=====================");
-  for (const [key, value] of Object.entries(userStats["top_genres"])) {
+  for (const [key, value] of userStats.top_genres) {
     console.log(`${key}: ${value}`);
-    console.log("=================");
+    console.log("=======================");
   }
 }
 
 /**
  * Updates Total Unique Titles Watched in UserStats
- * @param {uniqueTitles} - Total unique titles watched
  */
 function getUniqueTitlesWatched() {
   console.log(userStats["unique_titles_watched"].size);
 }
 
+/**
+ * Updates userStats["unique_titles_watched"] to keep track of the unique titles watched.
+ *
+ * @param {string} id - ID of the title.
+ */
 function logUniqueTitlesWatched(id) {
   userStats["unique_titles_watched"].add(id);
 }
