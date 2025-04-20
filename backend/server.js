@@ -21,6 +21,8 @@ const filePath = "./big.csv";
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
 
+const watchTimeByTitle = {};
+
 // Titles Cache
 const cache = {};
 // User Statistics Cache
@@ -62,9 +64,9 @@ const userStats = {
 
 main();
 
-function main() {
+async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  parseCSV();
+  await parseCSV();
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
@@ -115,6 +117,20 @@ function verifyMovieOrShow(data) {
   return data?.first_air_date === "";
 }
 
+/**
+ * Helper Function
+ *
+ * Normalizes a title string to use as a consistent key.
+ * Strips special characters, lowercases, and trims.
+ *
+ * @param {string} title - The raw or parsed title
+ * @returns {string} Normalized title string
+ */
+function normalizeTitle(title) {
+  return title.toLowerCase().trim().replace(/[^a-z0-9]/gi, "");
+}
+
+
 /*
  * ==============================
  *        PARSING FUNCTIONS
@@ -158,18 +174,29 @@ function getTitle(rawTitle) {
       parsedTitle = [rawTitle];
       break;
   }
-  return parsedTitle[0].trim().replace(":", "");
+
+  return rawTitle.split(":")[0].trim(); 
+  
+  
 }
 
 /**
  * Parses the CSV Date and gets the DateTime Object
  *
  * @param {string} rawDate - Date from CSV
- * @returns {DateTime Object} Date the title was watched
+ * @returns {Date|null} Date the title was watched
  */
-async function getDate(rawDate) {
-  return rawDate;
+function getDate(rawDate) {
+  const date = new Date(rawDate);
+
+  if (isNaN(date)) {
+    console.warn(`⚠️ Invalid date format: ${rawDate}`);
+    return null;
+  }
+  return date;
 }
+
+
 
 /**
  * Gets the TMDb data for a title.
@@ -204,7 +231,7 @@ async function getDate(rawDate) {
   ]
 }
  */
-async function getData(parsedTitle) {
+async function getData(parsedTitle, watchedCount = 1) {
   // 0 - TV Show [ Default ]
   // 1 - Movie
   let type = 0;
@@ -242,6 +269,18 @@ async function getData(parsedTitle) {
         first_air_date: match.first_air_date,
         number_of_episodes: detailsData.number_of_episodes,
       };
+      // Get the total time watched
+      const timeWatched = result.episode_run_time * watchedCount;
+      userStats.total_watch_time += timeWatched;
+
+       // Track by title for "most time spent watching"
+       const key = normalizeTitle(parsedTitle);
+       if (watchTimeByTitle[key]) {
+         watchTimeByTitle[key] += timeWatched;
+       } else {
+        watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
+       }
+       
 
       // Movie
     } else {
@@ -252,6 +291,16 @@ async function getData(parsedTitle) {
         id: match.id,
         genres: detailsData.genres,
       };
+      const timeWatched = result.runtime || 0;
+      userStats.total_watch_time += timeWatched;
+
+      const key = normalizeTitle(parsedTitle);
+      if (watchTimeByTitle[key]) {
+        watchTimeByTitle[key] += timeWatched;
+      } else {
+        watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
+      }
+
     }
 
     // =========================
@@ -298,6 +347,8 @@ async function getData(parsedTitle) {
 function parseCSV() {
   const titleList = [];
   const dateList = [];
+  const showFrequency = {};
+
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
@@ -305,7 +356,15 @@ function parseCSV() {
       .on("data", (row) => {
         if (row.Title) {
           const title = getTitle(row.Title);
+          const normalized = normalizeTitle(title);
           titleList.push(title);
+
+          // Count how many times this title appears
+          if (showFrequency[normalized]) {
+            showFrequency[normalized] += 1;
+          } else {
+            showFrequency[normalized] = 1;
+          }
         }
         if (row.Date) {
           const date = getDate(row.Date);
@@ -318,9 +377,13 @@ function parseCSV() {
           const dateResults = [];
 
           for (const title of titleList) {
-            const data = await getData(title);
+            const normalized = normalizeTitle(title);
+            const watchedCount = showFrequency[normalized];
+          
+            const data = await getData(title, watchedCount); 
             titleResults.push(data);
           }
+          
 
           for (const date of dateList) {
             // change below to be for dates or something
@@ -335,8 +398,8 @@ function parseCSV() {
           // =========================
           printUserStats();
 
-          resolve(titleResults);
-          resolve(dateResults);
+          resolve({ titleResults, dateResults });
+
         } catch (error) {
           reject(error);
         }
@@ -366,8 +429,32 @@ function printUserStats() {
     console.log(" UNIQUE TITLES WATCHED ");
     console.log("=======================");
     getUniqueTitlesWatched();
-    console.log("=======================");
   }
+
+  console.log("=======================");
+  console.log(`TOTAL WATCH TIME: ${userStats.total_watch_time} minutes`);
+  console.log(`That’s about ${(userStats.total_watch_time / 60).toFixed(2)} hours`);
+  console.log("=======================");
+
+  console.log("==== TOP 5 TITLES BY WATCH TIME ====");
+  Object.entries(watchTimeByTitle)
+    .sort((a, b) => b[1].minutes - a[1].minutes)
+    .slice(0, 5)
+    .forEach(([key, data]) => {
+      console.log(`${data.original}: ${data.minutes} minutes`);
+  });
+
+  console.log("====================================");
+
+
+  console.log("=======================");
+  const [_, mostWatched] = Object.entries(watchTimeByTitle)
+  .sort((a, b) => b[1].minutes - a[1].minutes)[0];
+  console.log(`YOU SPENT THE MOST TIME WATCHING: ${mostWatched.original} (${mostWatched.minutes} minutes)`);
+  console.log("=======================");
+
+
+
 }
 
 /**
