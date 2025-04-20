@@ -130,6 +130,26 @@ function normalizeTitle(title) {
   return title.toLowerCase().trim().replace(/[^a-z0-9]/gi, "");
 }
 
+/**
+ * * Helper Function
+ *
+ * Logs watch time for a given title
+ *
+ * @param {string} parsedTitle - The parsed title used as the key
+ * @param {number} timeWatched - The number of minutes watched
+ */
+function logWatchTime(parsedTitle, timeWatched) {
+  userStats.total_watch_time += timeWatched;
+
+  const key = normalizeTitle(parsedTitle);
+  if (watchTimeByTitle[key]) {
+    watchTimeByTitle[key].minutes += timeWatched;
+  } else {
+    watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
+  }
+}
+
+
 
 /*
  * ==============================
@@ -269,17 +289,10 @@ async function getData(parsedTitle, watchedCount = 1) {
         first_air_date: match.first_air_date,
         number_of_episodes: detailsData.number_of_episodes,
       };
-      // Get the total time watched
-      const timeWatched = result.episode_run_time * watchedCount;
-      userStats.total_watch_time += timeWatched;
 
-       // Track by title for "most time spent watching"
-       const key = normalizeTitle(parsedTitle);
-       if (watchTimeByTitle[key]) {
-         watchTimeByTitle[key] += timeWatched;
-       } else {
-        watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
-       }
+      const timeWatched = result.episode_run_time * watchedCount;
+      logWatchTime(parsedTitle, timeWatched);
+      
        
 
       // Movie
@@ -292,14 +305,7 @@ async function getData(parsedTitle, watchedCount = 1) {
         genres: detailsData.genres,
       };
       const timeWatched = result.runtime || 0;
-      userStats.total_watch_time += timeWatched;
-
-      const key = normalizeTitle(parsedTitle);
-      if (watchTimeByTitle[key]) {
-        watchTimeByTitle[key] += timeWatched;
-      } else {
-        watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
-      }
+      logWatchTime(parsedTitle, timeWatched);
 
     }
 
