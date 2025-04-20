@@ -348,7 +348,7 @@ function parseCSV() {
   const titleList = [];
   const dateList = [];
   const showFrequency = {};
-
+  const titleDateMap = {};
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
@@ -365,6 +365,13 @@ function parseCSV() {
           } else {
             showFrequency[normalized] = 1;
           }
+
+          // Track date per title for binging analysis
+          if (!titleDateMap[normalized]) {
+            titleDateMap[normalized] = [];
+          }
+          titleDateMap[normalized].push(row.Date); 
+
         }
         if (row.Date) {
           const date = getDate(row.Date);
@@ -396,6 +403,7 @@ function parseCSV() {
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
+          getMostBingedShow(titleDateMap);
           printUserStats();
 
           resolve({ titleResults, dateResults });
@@ -406,6 +414,41 @@ function parseCSV() {
       });
   });
 }
+
+function getMostBingedShow(titleDateMap) {
+  let mostBinged = "";
+  let longestStreak = 0;
+
+  for (const [title, dateList] of Object.entries(titleDateMap)) {
+    // Sort dates for this title
+    const sortedDates = dateList
+      .filter(Boolean)
+      .map((d) => new Date(d))
+      .sort((a, b) => a - b);
+
+    let currentStreak = 1;
+    let maxStreak = 1;
+
+    for (let i = 1; i < sortedDates.length; i++) {
+      const diff = (sortedDates[i] - sortedDates[i - 1]) / (1000 * 3600 * 24);
+      if (diff === 1) {
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+      } else {
+        currentStreak = 1;
+      }
+    }
+
+    if (maxStreak > longestStreak) {
+      longestStreak = maxStreak;
+      mostBinged = title;
+    }
+  }
+
+  userStats.most_binged_show = mostBinged;
+  userStats.longest_binge_streak = longestStreak;
+}
+
 
 /*
  * ==============================
@@ -455,6 +498,16 @@ function printUserStats() {
   console.log("=======================");
 
 
+  const bingeKey = userStats.most_binged_show;
+  if (bingeKey) {
+    const originalTitle =
+      watchTimeByTitle[bingeKey]?.original || bingeKey;
+    const streak = userStats.longest_binge_streak;
+
+    console.log("=======================");
+    console.log(`MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`);
+    console.log("=======================");
+  }
 
 }
 
