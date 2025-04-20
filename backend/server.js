@@ -436,15 +436,16 @@ function printUserStats() {
   console.log(`That’s about ${(userStats.total_watch_time / 60).toFixed(2)} hours`);
   console.log("=======================");
 
-  console.log("==== TOP 5 TITLES BY WATCH TIME ====");
+
+  console.log("=======================");
+  console.log("TOP 5 TITLES BY WATCH TIME");
   Object.entries(watchTimeByTitle)
     .sort((a, b) => b[1].minutes - a[1].minutes)
     .slice(0, 5)
     .forEach(([key, data]) => {
       console.log(`${data.original}: ${data.minutes} minutes`);
   });
-
-  console.log("====================================");
+  console.log("=======================");
 
 
   console.log("=======================");
