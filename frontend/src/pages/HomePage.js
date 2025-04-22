@@ -6,12 +6,31 @@ import logo from "../assets/statflix_logo-01.svg";
 function HomePage() {
     const navigate = useNavigate();
 
-    const handleFileUpload = (event) => {
+    const handleFileUpload = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
-        console.log("File uploaded:", file.name);
-        navigate("/carousel");
+    
+        const formData = new FormData();
+        formData.append("file", file);
+    
+        try {
+            const res = await fetch("http://localhost:3001/api/upload", {
+                method: "POST",
+                body: formData,
+            });
+    
+            if (!res.ok) {
+                throw new Error("Upload failed");
+            }
+    
+            console.log("✅ File uploaded and processed");
+            navigate("/carousel"); // Only navigate once data is ready
+        } catch (err) {
+            console.error("❌ Upload error:", err);
+            alert("There was a problem uploading your file.");
+        }
     };
+    
 
     return (
         <div style={{

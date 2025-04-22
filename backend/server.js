@@ -1,3 +1,5 @@
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 const fs = require("fs");
 const csv = require("csv-parser");
 const {
@@ -127,29 +129,11 @@ function verifyMovieOrShow(data) {
  * @returns {string} Normalized title string
  */
 function normalizeTitle(title) {
-  return title.toLowerCase().trim().replace(/[^a-z0-9]/gi, "");
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/gi, "");
 }
-
-/**
- * * Helper Function
- *
- * Logs watch time for a given title
- *
- * @param {string} parsedTitle - The parsed title used as the key
- * @param {number} timeWatched - The number of minutes watched
- */
-function logWatchTime(parsedTitle, timeWatched) {
-  userStats.total_watch_time += timeWatched;
-
-  const key = normalizeTitle(parsedTitle);
-  if (watchTimeByTitle[key]) {
-    watchTimeByTitle[key].minutes += timeWatched;
-  } else {
-    watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
-  }
-}
-
-
 
 /*
  * ==============================
@@ -195,9 +179,7 @@ function getTitle(rawTitle) {
       break;
   }
 
-  return rawTitle.split(":")[0].trim(); 
-  
-  
+  return rawTitle.split(":")[0].trim();
 }
 
 /**
@@ -215,8 +197,6 @@ function getDate(rawDate) {
   }
   return date;
 }
-
-
 
 /**
  * Gets the TMDb data for a title.
@@ -292,8 +272,6 @@ async function getData(parsedTitle, watchedCount = 1) {
 
       const timeWatched = result.episode_run_time * watchedCount;
       logWatchTime(parsedTitle, timeWatched);
-      
-       
 
       // Movie
     } else {
@@ -306,7 +284,6 @@ async function getData(parsedTitle, watchedCount = 1) {
       };
       const timeWatched = result.runtime || 0;
       logWatchTime(parsedTitle, timeWatched);
-
     }
 
     // =========================
@@ -362,22 +339,21 @@ function parseCSV() {
       .on("data", (row) => {
         if (row.Title) {
           const title = getTitle(row.Title);
-          const normalized = normalizeTitle(title);
+          const normalizedTitle = normalizeTitle(title);
           titleList.push(title);
 
           // Count how many times this title appears
-          if (showFrequency[normalized]) {
-            showFrequency[normalized] += 1;
+          if (showFrequency[normalizedTitle]) {
+            showFrequency[normalizedTitle] += 1;
           } else {
-            showFrequency[normalized] = 1;
+            showFrequency[normalizedTitle] = 1;
           }
 
           // Track date per title for binging analysis
-          if (!titleDateMap[normalized]) {
-            titleDateMap[normalized] = [];
+          if (!titleDateMap[normalizedTitle]) {
+            titleDateMap[normalizedTitle] = [];
           }
-          titleDateMap[normalized].push(row.Date); 
-
+          titleDateMap[normalizedTitle].push(row.Date);
         }
         if (row.Date) {
           const date = getDate(row.Date);
@@ -390,13 +366,11 @@ function parseCSV() {
           const dateResults = [];
 
           for (const title of titleList) {
-            const normalized = normalizeTitle(title);
-            const watchedCount = showFrequency[normalized];
-          
-            const data = await getData(title, watchedCount); 
+            const watchedCount = showFrequency[title];
+
+            const data = await getData(title, watchedCount);
             titleResults.push(data);
           }
-          
 
           for (const date of dateList) {
             // change below to be for dates or something
@@ -413,7 +387,6 @@ function parseCSV() {
           printUserStats();
 
           resolve({ titleResults, dateResults });
-
         } catch (error) {
           reject(error);
         }
@@ -455,7 +428,6 @@ function getMostBingedShow(titleDateMap) {
   userStats.longest_binge_streak = longestStreak;
 }
 
-
 /*
  * ==============================
  *        STATISTICS FUNCTIONS
@@ -480,41 +452,34 @@ function printUserStats() {
     getUniqueTitlesWatched();
   }
 
-  console.log("=======================");
-  console.log(`TOTAL WATCH TIME: ${userStats.total_watch_time} minutes`);
-  console.log(`That’s about ${(userStats.total_watch_time / 60).toFixed(2)} hours`);
-  console.log("=======================");
+  if (userStats.total_watch_time > 0) {
+    console.log("=======================");
+    console.log(" TOTAL WATCH TIME ");
+    console.log("=======================");
+    getTotalWatchTime();
 
+    console.log("=======================");
+    console.log("TOP 5 TITLES BY WATCH TIME");
+    console.log("=======================");
+    getTopWatchedTitles();
 
-  console.log("=======================");
-  console.log("TOP 5 TITLES BY WATCH TIME");
-  Object.entries(watchTimeByTitle)
-    .sort((a, b) => b[1].minutes - a[1].minutes)
-    .slice(0, 5)
-    .forEach(([key, data]) => {
-      console.log(`${data.original}: ${data.minutes} minutes`);
-  });
-  console.log("=======================");
-
-
-  console.log("=======================");
-  const [_, mostWatched] = Object.entries(watchTimeByTitle)
-  .sort((a, b) => b[1].minutes - a[1].minutes)[0];
-  console.log(`YOU SPENT THE MOST TIME WATCHING: ${mostWatched.original} (${mostWatched.minutes} minutes)`);
-  console.log("=======================");
-
+    console.log("=======================");
+    console.log("YOU SPENT THE MOST TIME WATCHING");
+    console.log("=======================");
+    getMostWatchedTitle();
+  }
 
   const bingeKey = userStats.most_binged_show;
   if (bingeKey) {
-    const originalTitle =
-      watchTimeByTitle[bingeKey]?.original || bingeKey;
+    const originalTitle = watchTimeByTitle[bingeKey]?.original || bingeKey;
     const streak = userStats.longest_binge_streak;
 
     console.log("=======================");
-    console.log(`MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`);
+    console.log(
+      `MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`,
+    );
     console.log("=======================");
   }
-
 }
 
 /**
@@ -537,20 +502,12 @@ function logTopGenres(genreArray) {
 }
 
 /**
- * Calculates the Top 5 Genres based on the userStats
+ * Prints the Top 5 Genres based on the userStats
  */
 function getTopGenres() {
   for (const [key, value] of userStats.top_genres) {
     console.log(`${key}: ${value}`);
-    console.log("=======================");
   }
-}
-
-/**
- * Updates Total Unique Titles Watched in UserStats
- */
-function getUniqueTitlesWatched() {
-  console.log(userStats["unique_titles_watched"].size);
 }
 
 /**
@@ -561,3 +518,104 @@ function getUniqueTitlesWatched() {
 function logUniqueTitlesWatched(id) {
   userStats["unique_titles_watched"].add(id);
 }
+
+/**
+ * Prints Total Unique Titles Watched of the user
+ */
+function getUniqueTitlesWatched() {
+  console.log(userStats["unique_titles_watched"].size);
+}
+
+/**
+ * Helper Function
+ *
+ * Logs watch time for a given title
+ *
+ * @param {string} parsedTitle - The parsed title used as the key
+ * @param {number} timeWatched - The number of minutes watched
+ */
+function logWatchTime(parsedTitle, timeWatched) {
+  userStats.total_watch_time += timeWatched;
+
+  const key = normalizeTitle(parsedTitle);
+  if (watchTimeByTitle[key]) {
+    watchTimeByTitle[key].minutes += timeWatched;
+  } else {
+    watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
+  }
+}
+
+/**
+ * Prints userStats["total_watch_time"] of the user
+ */
+function getTotalWatchTime() {
+  console.log(`${userStats.total_watch_time} minutes`);
+  console.log(
+    `That’s about ${(userStats.total_watch_time / 60).toFixed(2)} hours`,
+  );
+}
+
+/**
+ * Prints Top 5 Watched Titles by Watch Time
+ */
+function getTopWatchedTitles() {
+  Object.entries(watchTimeByTitle)
+    .sort((a, b) => b[1].minutes - a[1].minutes)
+    .slice(0, 5)
+    .forEach(([key, data]) => {
+      console.log(`${data.original}: ${data.minutes} minutes`);
+    });
+}
+
+/**
+ * Prints Most Watched Title
+ */
+function getMostWatchedTitle() {
+  const [_, mostWatched] = Object.entries(watchTimeByTitle).sort(
+    (a, b) => b[1].minutes - a[1].minutes,
+  )[0];
+  console.log(`${mostWatched.original} (${mostWatched.minutes} minutes)`);
+}
+
+// ========================================
+const express = require("express");
+const cors = require("cors");
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+app.get("/api/stats", (req, res) => {
+  const mostWatched = Object.entries(watchTimeByTitle).sort(
+    (a, b) => b[1].minutes - a[1].minutes,
+  )[0];
+
+  const top5Titles = Object.entries(watchTimeByTitle)
+    .sort((a, b) => b[1].minutes - a[1].minutes)
+    .slice(0, 5)
+    .map(([key, val]) => [val.original, val.minutes]);
+
+  res.json({
+    topGenres: userStats.top_genres,
+    uniqueTitles: userStats.unique_titles_watched.size,
+    totalWatchTimeMinutes: userStats.total_watch_time,
+    totalWatchTimeHours: userStats.total_watch_time / 60,
+    topTitles: top5Titles,
+    mostWatched: {
+      title: mostWatched?.[1].original || "",
+      minutes: mostWatched?.[1].minutes || 0,
+    },
+    mostBinged: {
+      title:
+        watchTimeByTitle[userStats.most_binged_show]?.original ||
+        userStats.most_binged_show ||
+        "N/A",
+      streak: userStats.longest_binge_streak || 0,
+    },
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
