@@ -285,12 +285,13 @@ async function getData(normalizedTitle) {
   // SECTION END
   // ====================
 
+  const originalTitle = getOriginalTitle(normalizedTitle);
+
   // 0 - TV Show [ Default ]
   // 1 - Movie
   let type = 0;
   let detailsData = {};
   let result = {};
-  const originalTitle = getOriginalTitle(normalizedTitle);
 
   // Not in cache
   // Search TV/Movie using API
@@ -305,22 +306,15 @@ async function getData(normalizedTitle) {
   // ====================
   // SECTION BEGIN
   //
-  // Replace match.[stuff] with detailsData.[stuff] -> details API gives the same shit
   // DB Call: Update the POSTGRESQL TABLE with new information at the end
-  //
   // Change result = {} based on POSTGRESQL TABLE
   // ====================
 
+  let timeWatched = 0;
+  const titleFrequency = getTitleWatchFrequency(normalizedTitle);
+
   const match = data?.results?.[0];
   if (match) {
-    // =============================
-    // TODO
-    // No fallbacks on if the API data is empty for some params or not
-    // Ex. match.first_air_date == ""
-    // =============================
-
-    const titleFrequency = getTitleWatchFrequency(normalizedTitle);
-
     // TV Show
     if (type == 0) {
       detailsData = await getTVDetails(match.id);
@@ -338,8 +332,7 @@ async function getData(normalizedTitle) {
         poster_path: detailsData.poster_path || null,
       };
 
-      const timeWatched = result.episode_run_time * titleFrequency;
-      logWatchTime(normalizedTitle, timeWatched);
+      timeWatched = result.episode_run_time * titleFrequency;
 
       // Movie
     } else {
@@ -359,20 +352,26 @@ async function getData(normalizedTitle) {
       };
 
       const runtime = result.runtime || 0;
-      const timeWatched = runtime * titleFrequency;
-      logWatchTime(normalizedTitle, timeWatched);
+      timeWatched = runtime * titleFrequency;
     }
 
-    // ====================
-    // SECTION END
-    // ====================
+    // =========================
+    // POSTGRESQL CALL HERE
+    // =========================
+
+    // Save result to cache
+    cache[normalizedTitle] = result;
+
+    // =========================
+    // POSTGRESQL CALL HERE
+    // =========================
 
     // =========================
     // STATISTICS FUNCTION CALLS
     // =========================
+    logWatchTime(normalizedTitle, timeWatched);
     logTopGenres(result.genres);
 
-    cache[normalizedTitle] = result; // Save result to cache
     return result;
   }
 
@@ -387,23 +386,12 @@ async function getData(normalizedTitle) {
 }
 
 /**
- * Parses a user's Netflix ViewingActivity CSV file and extracts searchable TMDb titles.
- *
- * Reads the "Title" column from the CSV file and uses `getTitle()` to normalize titles.
- * Then calls `getID()` for each parsed title to retrieve the corresponding TMDb ID
- * (via TV or Movie search), while caching results to minimize API calls.
+ * Parses users NetflixViewingActivity CSV file.
+ * Extracts searchable TMDb titles and parses dates when user watched the title.
  *
  * @async
  * @function
- * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects,
- * each containing a parsed title and its corresponding TMDb ID, or `null` if no match was found.
- *
- * Example return:
- * [
- *   { title: "Breaking Bad", tmdbId: 1396 },
- *   { title: "Stranger Things", tmdbId: 66732 },
- *   ...
- * ]
+ * @returns null
  *
  * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
  */
@@ -437,20 +425,9 @@ function parseCSV() {
       })
       .on("end", async () => {
         try {
-          // ====================
-          // SECTION BEGIN
-          // Loop over titleDict for normalizedTitles
-          // Remove watchedCount
-          // Make it getData(normalizedTitle)
-          // Remove the rest (ex. dateList shit)
-          // ====================
           for (const normalizedTitle of Object.keys(titleToDateFreq)) {
-            const data = await getData(normalizedTitle);
+            await getData(normalizedTitle);
           }
-          // ====================
-          // SECTION END
-          // ====================
-
           console.log("✅ CSV processing done.");
 
           // =========================
@@ -512,8 +489,6 @@ function getMostBingedShow(titleDateMap) {
  * Prints out all the User Statistics to the console.
  */
 function printUserStats() {
-  print(titleToDateFreq);
-
   if (Object.keys(userStats.genres).length > 0) {
     console.log("=======================");
     console.log("      TOP GENRES     ");
