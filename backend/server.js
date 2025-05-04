@@ -22,11 +22,11 @@ const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
-
 const watchTimeByTitle = {};
 
 // Titles Cache
 const cache = {};
+
 // User Statistics Cache
 const userStats = {
   // dict
@@ -48,6 +48,10 @@ const userStats = {
   // int
   total_watch_time: 0,
 
+  // dict
+  // { "Sherlock": 200, "Gossip Girl": 450, ...}
+  watchTimeByTitle: {},
+
   // TMDb ID or Title String?
   most_watched_tv_show: "",
 
@@ -57,6 +61,9 @@ const userStats = {
   // int
   num_shows_completed: 0,
 };
+
+titleToDateFreq = {};
+normalizedToOriginal = {};
 
 /*
  * ==============================
@@ -133,6 +140,31 @@ function normalizeTitle(title) {
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]/gi, "");
+}
+
+/**
+ * Helper Function
+ *
+ * Returns the title before it was normalized.
+ * This is also known as the Original Title
+ *
+ * @param {string} normalizedTitle - The normalized title
+ * @returns {string} Original title string
+ */
+function getOriginalTitle(normalizedTitle) {
+  return normalizedToOriginal[normalizedTitle];
+}
+
+/**
+ * Helper Function
+ *
+ * Returns how many times the user has watched the title
+ *
+ * @param {string} normalizedTitle - The normalized title
+ * @returns {int} Watch frequency of the title
+ */
+function getTitleWatchFrequency(normalizedTitle) {
+  return titleToDateFreq[normalizedTitle].titleFrequency;
 }
 
 /*
@@ -231,68 +263,116 @@ function getDate(rawDate) {
   ]
 }
  */
-async function getData(parsedTitle, watchedCount = 1) {
+async function getData(normalizedTitle) {
+  // ====================
+  // SECTION BEGIN
+  //
+  // POSTGRESQL FUNCTION CALL HERE
+  // Check if normalizedTitle is in the DB
+  //    Return
+  // Otherwise proceed ahead
+  //
+  // TEMPORARY CACHE UNTIL DB IS SETUP
+  // ====================
+
+  // Check cache first
+  if (cache[normalizedTitle]) {
+    // console.log(`✅ Cache hit: ${normalizedTitle}`);
+    return cache[normalizedTitle]; // Return cached result
+  }
+
+  // ====================
+  // SECTION END
+  // ====================
+
   // 0 - TV Show [ Default ]
   // 1 - Movie
   let type = 0;
-
-  // Check cache first
-  if (cache[parsedTitle]) {
-    // console.log(`✅ Cache hit: ${parsedTitle}`);
-    return cache[parsedTitle]; // Return cached result
-  }
+  let detailsData = {};
+  let result = {};
+  const originalTitle = getOriginalTitle(normalizedTitle);
 
   // Not in cache
   // Search TV/Movie using API
-  let data = await searchTVShow(parsedTitle);
+  let data = await searchTVShow(originalTitle);
+
   // Check if it is truly a TV Show
   if (verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
-    data = await searchMovie(parsedTitle);
-    // Set flag that this title is a Movie
+    data = await searchMovie(originalTitle);
     type = 1;
   }
 
+  // ====================
+  // SECTION BEGIN
+  //
+  // Replace match.[stuff] with detailsData.[stuff] -> details API gives the same shit
+  // DB Call: Update the POSTGRESQL TABLE with new information at the end
+  //
+  // Change result = {} based on POSTGRESQL TABLE
+  // ====================
+
   const match = data?.results?.[0];
   if (match) {
-    let detailsData = {};
-    let result = {};
+    // =============================
+    // TODO
+    // No fallbacks on if the API data is empty for some params or not
+    // Ex. match.first_air_date == ""
+    // =============================
+
+    const titleFrequency = getTitleWatchFrequency(normalizedTitle);
 
     // TV Show
     if (type == 0) {
       detailsData = await getTVDetails(match.id);
       result = {
-        type: type,
-        title: parsedTitle,
-        id: match.id,
-        genres: detailsData.genres,
+        normalized_title: normalizedTitle || null,
+        original_title: originalTitle || null,
+        tmdb_id: detailsData.id || null,
+        type: type || null,
+        genres: detailsData.genres || null,
+        runtime: null,
+        number_of_episodes: detailsData.number_of_episodes || null,
         episode_run_time: await getEpisodeRunTime(detailsData),
-        first_air_date: match.first_air_date,
-        number_of_episodes: detailsData.number_of_episodes,
+        release_date: null,
+        first_air_date: detailsData.first_air_date || null,
+        poster_path: detailsData.poster_path || null,
       };
 
-      const timeWatched = result.episode_run_time * watchedCount;
-      logWatchTime(parsedTitle, timeWatched);
+      const timeWatched = result.episode_run_time * titleFrequency;
+      logWatchTime(normalizedTitle, timeWatched);
 
       // Movie
     } else {
       detailsData = await getMovieDetails(match.id);
       result = {
-        type: type,
-        title: parsedTitle,
-        id: match.id,
-        genres: detailsData.genres,
+        normalized_title: normalizedTitle || null,
+        original_title: originalTitle || null,
+        tmdb_id: detailsData.id || null,
+        type: type || null,
+        genres: detailsData.genres || null,
+        runtime: detailsData.runtime || null,
+        number_of_episodes: null,
+        episode_run_time: null,
+        release_date: detailsData.release_date || null,
+        first_air_date: null,
+        poster_path: detailsData.poster_path || null,
       };
-      const timeWatched = result.runtime || 0;
-      logWatchTime(parsedTitle, timeWatched);
+
+      const runtime = result.runtime || 0;
+      const timeWatched = runtime * titleFrequency;
+      logWatchTime(normalizedTitle, timeWatched);
     }
+
+    // ====================
+    // SECTION END
+    // ====================
 
     // =========================
     // STATISTICS FUNCTION CALLS
     // =========================
-    logTopGenres(detailsData.genres);
-    logUniqueTitlesWatched(match.id);
+    logTopGenres(result.genres);
 
-    cache[parsedTitle] = result; // Save result to cache
+    cache[normalizedTitle] = result; // Save result to cache
     return result;
   }
 
@@ -302,7 +382,7 @@ async function getData(parsedTitle, watchedCount = 1) {
   await new Promise((r) => setTimeout(r, 300));
 
   // Still cache null to avoid repeated failed lookups
-  cache[parsedTitle] = null;
+  cache[normalizedTitle] = null;
   return null;
 }
 
@@ -330,63 +410,57 @@ async function getData(parsedTitle, watchedCount = 1) {
 function parseCSV() {
   const titleList = [];
   const dateList = [];
-  const showFrequency = {};
-  const titleDateMap = {};
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (row) => {
-        if (row.Title) {
-          const title = getTitle(row.Title);
-          const normalizedTitle = normalizeTitle(title);
-          titleList.push(title);
-
-          // Count how many times this title appears
-          if (showFrequency[normalizedTitle]) {
-            showFrequency[normalizedTitle] += 1;
-          } else {
-            showFrequency[normalizedTitle] = 1;
-          }
-
-          // Track date per title for binging analysis
-          if (!titleDateMap[normalizedTitle]) {
-            titleDateMap[normalizedTitle] = [];
-          }
-          titleDateMap[normalizedTitle].push(row.Date);
-        }
-        if (row.Date) {
+        if (row.Title && row.Date) {
+          const originalTitle = getTitle(row.Title);
+          const normalizedTitle = normalizeTitle(originalTitle);
           const date = getDate(row.Date);
+
+          normalizedToOriginal[normalizedTitle] = originalTitle;
+
+          if (!titleToDateFreq[normalizedTitle]) {
+            titleToDateFreq[normalizedTitle] = {
+              datesWatched: [],
+              titleFrequency: 0,
+            };
+          }
+          titleToDateFreq[normalizedTitle].titleFrequency += 1;
+          titleToDateFreq[normalizedTitle].datesWatched.push(date);
+
+          titleList.push(originalTitle);
           dateList.push(date);
         }
       })
       .on("end", async () => {
         try {
-          const titleResults = [];
-          const dateResults = [];
-
-          for (const title of titleList) {
-            const watchedCount = showFrequency[title];
-
-            const data = await getData(title, watchedCount);
-            titleResults.push(data);
+          // ====================
+          // SECTION BEGIN
+          // Loop over titleDict for normalizedTitles
+          // Remove watchedCount
+          // Make it getData(normalizedTitle)
+          // Remove the rest (ex. dateList shit)
+          // ====================
+          for (const normalizedTitle of Object.keys(titleToDateFreq)) {
+            const data = await getData(normalizedTitle);
           }
-
-          for (const date of dateList) {
-            // change below to be for dates or something
-            // const id = await getID(title);
-            dateResults.push(date);
-          }
+          // ====================
+          // SECTION END
+          // ====================
 
           console.log("✅ CSV processing done.");
 
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
-          getMostBingedShow(titleDateMap);
+
+          // getMostBingedShow(titleDateMap);
           printUserStats();
 
-          resolve({ titleResults, dateResults });
+          resolve({ titleList, dateList });
         } catch (error) {
           reject(error);
         }
@@ -402,7 +476,7 @@ function getMostBingedShow(titleDateMap) {
     // Sort dates for this title
     const sortedDates = dateList
       .filter(Boolean)
-      .map((d) => new Date(d))
+      .map((d) => new Date(d)) // <- No point doing this here when getDate() exists
       .sort((a, b) => a - b);
 
     let currentStreak = 1;
@@ -438,7 +512,9 @@ function getMostBingedShow(titleDateMap) {
  * Prints out all the User Statistics to the console.
  */
 function printUserStats() {
-  if (userStats.top_genres.length > 0) {
+  print(titleToDateFreq);
+
+  if (Object.keys(userStats.genres).length > 0) {
     console.log("=======================");
     console.log("      TOP GENRES     ");
     console.log("=======================");
@@ -469,21 +545,21 @@ function printUserStats() {
     getMostWatchedTitle();
   }
 
-  const bingeKey = userStats.most_binged_show;
-  if (bingeKey) {
-    const originalTitle = watchTimeByTitle[bingeKey]?.original || bingeKey;
-    const streak = userStats.longest_binge_streak;
-
-    console.log("=======================");
-    console.log(
-      `MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`,
-    );
-    console.log("=======================");
-  }
+  // const bingeKey = userStats.most_binged_show;
+  // if (bingeKey) {
+  //   const originalTitle = watchTimeByTitle[bingeKey]?.original || bingeKey;
+  //   const streak = userStats.longest_binge_streak;
+  //
+  //   console.log("=======================");
+  //   console.log(
+  //     `MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`,
+  //   );
+  //   console.log("=======================");
+  // }
 }
 
 /**
- * Updates userStats["top_genres"] to keep track of the occurrences of each genre.
+ * Updates userStats["genres"] dict to keep track of the occurrences of each genre.
  *
  * @param {string} genreArray - Genres of current title
  */
@@ -495,35 +571,26 @@ function logTopGenres(genreArray) {
       userStats["genres"][genre.name] = 1;
     }
   }
-
-  userStats["top_genres"] = Object.entries(userStats["genres"])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
 }
 
 /**
  * Prints the Top 5 Genres based on the userStats
  */
 function getTopGenres() {
+  userStats["top_genres"] = Object.entries(userStats["genres"])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
   for (const [key, value] of userStats.top_genres) {
     console.log(`${key}: ${value}`);
   }
 }
 
 /**
- * Updates userStats["unique_titles_watched"] to keep track of the unique titles watched.
- *
- * @param {string} id - ID of the title.
- */
-function logUniqueTitlesWatched(id) {
-  userStats["unique_titles_watched"].add(id);
-}
-
-/**
  * Prints Total Unique Titles Watched of the user
  */
 function getUniqueTitlesWatched() {
-  console.log(userStats["unique_titles_watched"].size);
+  console.log(Object.keys(titleToDateFreq).length);
 }
 
 /**
