@@ -1,14 +1,11 @@
-const multer = require("multer");
+import multer from "multer";
 const upload = multer({ dest: "uploads/" });
-const fs = require("fs");
-const csv = require("csv-parser");
-const {
-  searchTVShow,
-  searchMovie,
-  getTVDetails,
-  getMovieDetails,
-} = require("./tmdb");
-require("dotenv").config();
+import fs from "fs";
+import csv from "csv-parser";
+import dotenv from "dotenv";
+import * as api from "./tmdb.js";
+import * as helper from "./helpers.js";
+dotenv.config();
 
 /*
  * ==============================
@@ -62,8 +59,8 @@ const userStats = {
   num_shows_completed: 0,
 };
 
-titleToDateFreq = {};
-normalizedToOriginal = {};
+let titleToDateFreq = {};
+let normalizedToOriginal = {};
 
 /*
  * ==============================
@@ -77,157 +74,6 @@ async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
   await parseCSV();
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
-}
-
-/*
- * ==============================
- *        HELPER FUNCTIONS
- * ==============================
- */
-
-/**
- * Helper Function
- *
- * Formatted print of an item.
- *
- * @param {<String>} item - Item to be printed
- */
-function print(item) {
-  console.log("================================");
-  console.log(item);
-  console.log("================================");
-}
-
-/**
- * Helper Function
- *
- * Gets the episode run time for a TV Show
- *
- * @param {string} detailsData - Output from getTVDetails() API Call
- * @returns {int} Runtime of the episode
- */
-function getEpisodeRunTime(detailsData) {
-  if (detailsData.episode_run_time.length == 0) {
-    return detailsData.last_episode_to_air.runtime;
-  } else {
-    return detailsData.episode_run_time[0];
-  }
-}
-
-/**
- * Helper Function
- *
- * Verifies if the title is a Movie or a TV Show
- *
- * @param {dict} data - Output from searchTVShow() API Call
- * @returns {bool} True - Movie | False - TV Show
- */
-function verifyMovieOrShow(data) {
-  return data?.first_air_date === "";
-}
-
-/**
- * Helper Function
- *
- * Normalizes a title string to use as a consistent key.
- * Strips special characters, lowercases, and trims.
- *
- * @param {string} title - The raw or parsed title
- * @returns {string} Normalized title string
- */
-function normalizeTitle(title) {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/gi, "");
-}
-
-/**
- * Helper Function
- *
- * Returns the title before it was normalized.
- * This is also known as the Original Title
- *
- * @param {string} normalizedTitle - The normalized title
- * @returns {string} Original title string
- */
-function getOriginalTitle(normalizedTitle) {
-  return normalizedToOriginal[normalizedTitle];
-}
-
-/**
- * Helper Function
- *
- * Returns how many times the user has watched the title
- *
- * @param {string} normalizedTitle - The normalized title
- * @returns {int} Watch frequency of the title
- */
-function getTitleWatchFrequency(normalizedTitle) {
-  return titleToDateFreq[normalizedTitle].titleFrequency;
-}
-
-/*
- * ==============================
- *        PARSING FUNCTIONS
- * ==============================
- */
-
-/**
- * Parses the CSV Title and gets the TMDb Searchable Title
- *
- * @param {string} rawTitle - Title from CSV
- * @returns {string} Formatted and searchable TMDb Title
- * Reference: https://developer.themoviedb.org/reference/search-tv
- */
-function getTitle(rawTitle) {
-  let parsedTitle = "";
-  switch (true) {
-    case rawTitle.includes("Season"):
-      parsedTitle = rawTitle.split(/(?=\s*Season)/i);
-      break;
-    case rawTitle.includes("Limited Series"):
-      parsedTitle = rawTitle.split(/(?=\s*Limited Series)/i);
-      break;
-    case rawTitle.includes("Volume"):
-      parsedTitle = rawTitle.split(/(?=\s*Volume)/i);
-      break;
-    case rawTitle.includes("Part"):
-      parsedTitle = rawTitle.split(/(?=\s*Part)/i);
-      break;
-    case rawTitle.includes("Chapter"):
-      parsedTitle = rawTitle.split(/(?=\s*Chapter)/i);
-      break;
-    case rawTitle.includes("Episode"):
-      parsedTitle = rawTitle.split(/(?=\s*Episode)/i);
-      break;
-    case rawTitle.includes(":"):
-      parsedTitle = rawTitle.split(/(?=\s*:)/i);
-      break;
-    default:
-      // If no case matches, just keep the raw title as parsedTitle
-      // This ensures it's an array with the raw title
-      parsedTitle = [rawTitle];
-      break;
-  }
-
-  return rawTitle.split(":")[0].trim();
-}
-
-/**
- * Parses the CSV Date and gets the DateTime Object
- *
- * @param {string} rawDate - Date from CSV
- * @returns {Date|null} Date the title was watched
- */
-function getDate(rawDate) {
-  const date = new Date(rawDate);
-
-  if (isNaN(date)) {
-    console.warn(`⚠️ Invalid date format: ${rawDate}`);
-    return null;
-  }
-  return date;
 }
 
 /**
@@ -285,7 +131,10 @@ async function getData(normalizedTitle) {
   // SECTION END
   // ====================
 
-  const originalTitle = getOriginalTitle(normalizedTitle);
+  const originalTitle = helper.getOriginalTitle(
+    normalizedToOriginal,
+    normalizedTitle,
+  );
 
   // 0 - TV Show [ Default ]
   // 1 - Movie
@@ -295,11 +144,11 @@ async function getData(normalizedTitle) {
 
   // Not in cache
   // Search TV/Movie using API
-  let data = await searchTVShow(originalTitle);
+  let data = await api.searchTVShow(originalTitle);
 
   // Check if it is truly a TV Show
-  if (verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
-    data = await searchMovie(originalTitle);
+  if (helper.verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
+    data = await api.searchMovie(originalTitle);
     type = 1;
   }
 
@@ -311,13 +160,16 @@ async function getData(normalizedTitle) {
   // ====================
 
   let timeWatched = 0;
-  const titleFrequency = getTitleWatchFrequency(normalizedTitle);
+  const titleFrequency = helper.getTitleWatchFrequency(
+    titleToDateFreq,
+    normalizedTitle,
+  );
 
   const match = data?.results?.[0];
   if (match) {
     // TV Show
     if (type == 0) {
-      detailsData = await getTVDetails(match.id);
+      detailsData = await api.getTVDetails(match.id);
       result = {
         normalized_title: normalizedTitle || null,
         original_title: originalTitle || null,
@@ -326,7 +178,7 @@ async function getData(normalizedTitle) {
         genres: detailsData.genres || null,
         runtime: null,
         number_of_episodes: detailsData.number_of_episodes || null,
-        episode_run_time: await getEpisodeRunTime(detailsData),
+        episode_run_time: await helper.getEpisodeRunTime(detailsData),
         release_date: null,
         first_air_date: detailsData.first_air_date || null,
         poster_path: detailsData.poster_path || null,
@@ -336,7 +188,7 @@ async function getData(normalizedTitle) {
 
       // Movie
     } else {
-      detailsData = await getMovieDetails(match.id);
+      detailsData = await api.getMovieDetails(match.id);
       result = {
         normalized_title: normalizedTitle || null,
         original_title: originalTitle || null,
@@ -404,9 +256,9 @@ function parseCSV() {
       .pipe(csv())
       .on("data", (row) => {
         if (row.Title && row.Date) {
-          const originalTitle = getTitle(row.Title);
-          const normalizedTitle = normalizeTitle(originalTitle);
-          const date = getDate(row.Date);
+          const originalTitle = helper.getTitle(row.Title);
+          const normalizedTitle = helper.normalizeTitle(originalTitle);
+          const date = helper.getDate(row.Date);
 
           normalizedToOriginal[normalizedTitle] = originalTitle;
 
@@ -579,7 +431,7 @@ function getUniqueTitlesWatched() {
 function logWatchTime(parsedTitle, timeWatched) {
   userStats.total_watch_time += timeWatched;
 
-  const key = normalizeTitle(parsedTitle);
+  const key = helper.normalizeTitle(parsedTitle);
   if (watchTimeByTitle[key]) {
     watchTimeByTitle[key].minutes += timeWatched;
   } else {
@@ -620,8 +472,8 @@ function getMostWatchedTitle() {
 }
 
 // ========================================
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 3001;
 

@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const tmdb = axios.create({
   baseURL: "https://api.themoviedb.org/3",
@@ -92,9 +92,4 @@ const getMovieDetails = async (movie_id) => {
   }
 };
 
-module.exports = {
-  searchTVShow,
-  searchMovie,
-  getTVDetails,
-  getMovieDetails,
-};
+export { searchTVShow, searchMovie, getTVDetails, getMovieDetails };
