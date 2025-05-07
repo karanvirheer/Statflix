@@ -10,10 +10,11 @@
  * Formatted print of an item.
  *
  * @param {<String>} item - Item to be printed
+ * @returns {null} Prints to the console
  */
 export function print(item) {
   console.log("================================");
-  console.log(item);
+  console.log(`         ${item}         `);
   console.log("================================");
 }
 

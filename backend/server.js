@@ -19,7 +19,6 @@ const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
-const watchTimeByTitle = {};
 
 // Titles Cache
 const cache = {};
@@ -34,29 +33,29 @@ const userStats = {
   // array
   // Top 3 Genres of User
   // [ [ 'Drama', 175 ], [ 'Comedy', 129 ], [ 'Romance', 64 ] ]
-  top_genres: [],
+  topGenres: [],
 
   // TMDb ID or Title String?
-  most_binged_show: "",
+  mostBingedShow: {},
 
   // int
-  unique_titles_watched: new Set(),
+  numUniqueTitlesWatched: new Set(),
 
   // int
-  total_watch_time: 0,
+  totalWatchTime: 0,
 
   // dict
   // { "Sherlock": 200, "Gossip Girl": 450, ...}
   watchTimeByTitle: {},
 
   // TMDb ID or Title String?
-  most_watched_tv_show: "",
+  mostWatchedShow: "",
 
   // TMDb ID or Title String?
-  oldest_watched_show: "",
+  oldestWatchedShow: "",
 
   // int
-  num_shows_completed: 0,
+  numShowsCompleted: 0,
 };
 
 let titleToDateFreq = {};
@@ -81,33 +80,6 @@ async function main() {
  *
  * @param {string} parsedTitle - TMDb Searchable Title
  * @returns {Promise<dict>} Information related to the title
- *
- * Example return:
- * 
-{
-  type: 0,
-  title: 'ONE PIECE',
-  id: 37854,
-  genres: [
-    { id: 10759, name: 'Action & Adventure' },
-    { id: 35, name: 'Comedy' },
-    { id: 16, name: 'Animation' }
-  ],
-  episode_run_time: 24,
-  first_air_date: '1999-10-20',
-  number_of_episodes: 1128
-}
-
-{
-  type: 1,
-  title: 'Glass Onion',
-  id: 661374,
-  genres: [
-    { id: 35, name: 'Comedy' },
-    { id: 80, name: 'Crime' },
-    { id: 9648, name: 'Mystery' }
-  ]
-}
  */
 async function getData(normalizedTitle) {
   // ====================
@@ -221,8 +193,9 @@ async function getData(normalizedTitle) {
     // =========================
     // STATISTICS FUNCTION CALLS
     // =========================
-    logWatchTime(normalizedTitle, timeWatched);
+    logWatchTime(normalizedTitle, type, timeWatched);
     logTopGenres(result.genres);
+    logMostBingedShow();
 
     return result;
   }
@@ -297,39 +270,39 @@ function parseCSV() {
   });
 }
 
-function getMostBingedShow(titleDateMap) {
-  let mostBinged = "";
-  let longestStreak = 0;
-
-  for (const [title, dateList] of Object.entries(titleDateMap)) {
-    // Sort dates for this title
-    const sortedDates = dateList
-      .filter(Boolean)
-      .map((d) => new Date(d)) // <- No point doing this here when getDate() exists
-      .sort((a, b) => a - b);
-
-    let currentStreak = 1;
-    let maxStreak = 1;
-
-    for (let i = 1; i < sortedDates.length; i++) {
-      const diff = (sortedDates[i] - sortedDates[i - 1]) / (1000 * 3600 * 24);
-      if (diff === 1) {
-        currentStreak++;
-        maxStreak = Math.max(maxStreak, currentStreak);
-      } else {
-        currentStreak = 1;
-      }
-    }
-
-    if (maxStreak > longestStreak) {
-      longestStreak = maxStreak;
-      mostBinged = title;
-    }
-  }
-
-  userStats.most_binged_show = mostBinged;
-  userStats.longest_binge_streak = longestStreak;
-}
+// function getMostBingedShow(titleDateMap) {
+//   let mostBinged = "";
+//   let longestStreak = 0;
+//
+//   for (const [title, dateList] of Object.entries(titleDateMap)) {
+//     // Sort dates for this title
+//     const sortedDates = dateList
+//       .filter(Boolean)
+//       .map((d) => new Date(d)) // <- No point doing this here when getDate() exists
+//       .sort((a, b) => a - b);
+//
+//     let currentStreak = 1;
+//     let maxStreak = 1;
+//
+//     for (let i = 1; i < sortedDates.length; i++) {
+//       const diff = (sortedDates[i] - sortedDates[i - 1]) / (1000 * 3600 * 24);
+//       if (diff === 1) {
+//         currentStreak++;
+//         maxStreak = Math.max(maxStreak, currentStreak);
+//       } else {
+//         currentStreak = 1;
+//       }
+//     }
+//
+//     if (maxStreak > longestStreak) {
+//       longestStreak = maxStreak;
+//       mostBinged = title;
+//     }
+//   }
+//
+//   userStats.mostBingedShow = mostBinged;
+//   userStats.longest_binge_streak = longestStreak;
+// }
 
 /*
  * ==============================
@@ -342,37 +315,32 @@ function getMostBingedShow(titleDateMap) {
  */
 function printUserStats() {
   if (Object.keys(userStats.genres).length > 0) {
-    console.log("=======================");
-    console.log("      TOP GENRES     ");
-    console.log("=======================");
+    helper.print("TOP GENRES");
     getTopGenres();
   }
 
-  if (userStats.unique_titles_watched.size > 0) {
-    console.log("=======================");
-    console.log(" UNIQUE TITLES WATCHED ");
-    console.log("=======================");
+  if (userStats.numUniqueTitlesWatched.size > 0) {
+    helper.print("UNIQUE TITLES WATCHED");
     getUniqueTitlesWatched();
   }
 
-  if (userStats.total_watch_time > 0) {
-    console.log("=======================");
-    console.log(" TOTAL WATCH TIME ");
-    console.log("=======================");
+  if (userStats.totalWatchTime > 0) {
+    helper.print("TOTAL WATCH TIME");
     getTotalWatchTime();
 
-    console.log("=======================");
-    console.log("TOP 5 TITLES BY WATCH TIME");
-    console.log("=======================");
+    helper.print("TOP 5 TITLES BY WATCH TIME");
     getTopWatchedTitles();
 
-    console.log("=======================");
-    console.log("YOU SPENT THE MOST TIME WATCHING");
-    console.log("=======================");
+    helper.print("YOU SPENT THE MOST TIME WATCHING");
     getMostWatchedTitle();
   }
 
-  // const bingeKey = userStats.most_binged_show;
+  if (userStats.mostBingedShow) {
+    helper.print("MOST BINGED SHOW");
+    getMostBingedShow();
+  }
+
+  // const bingeKey = userStats.mostBingedShow;
   // if (bingeKey) {
   //   const originalTitle = watchTimeByTitle[bingeKey]?.original || bingeKey;
   //   const streak = userStats.longest_binge_streak;
@@ -385,6 +353,12 @@ function printUserStats() {
   // }
 }
 
+/*
+ * ------------------------------
+ *         TOP GENRES
+ * ------------------------------
+ */
+
 /**
  * Updates userStats["genres"] dict to keep track of the occurrences of each genre.
  *
@@ -392,10 +366,10 @@ function printUserStats() {
  */
 function logTopGenres(genreArray) {
   for (const genre of genreArray) {
-    if (genre.name in userStats["genres"]) {
-      userStats["genres"][genre.name] += 1;
+    if (genre.name in userStats.genres) {
+      userStats.genres[genre.name] += 1;
     } else {
-      userStats["genres"][genre.name] = 1;
+      userStats.genres[genre.name] = 1;
     }
   }
 }
@@ -404,14 +378,20 @@ function logTopGenres(genreArray) {
  * Prints the Top 5 Genres based on the userStats
  */
 function getTopGenres() {
-  userStats["top_genres"] = Object.entries(userStats["genres"])
+  userStats.topGenres = Object.entries(userStats.genres)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  for (const [key, value] of userStats.top_genres) {
+  for (const [key, value] of userStats.topGenres) {
     console.log(`${key}: ${value}`);
   }
 }
+
+/*
+ * ------------------------------
+ *    UNIQUE TITLES WATCHED
+ * ------------------------------
+ */
 
 /**
  * Prints Total Unique Titles Watched of the user
@@ -420,22 +400,30 @@ function getUniqueTitlesWatched() {
   console.log(Object.keys(titleToDateFreq).length);
 }
 
-/**
- * Helper Function
- *
- * Logs watch time for a given title
- *
- * @param {string} parsedTitle - The parsed title used as the key
- * @param {number} timeWatched - The number of minutes watched
+/*
+ * ------------------------------
+ *    TOTAL WATCH TIME
+ * ------------------------------
  */
-function logWatchTime(parsedTitle, timeWatched) {
-  userStats.total_watch_time += timeWatched;
 
-  const key = helper.normalizeTitle(parsedTitle);
-  if (watchTimeByTitle[key]) {
-    watchTimeByTitle[key].minutes += timeWatched;
+/**
+ * Updates userStats.totalWatchTime] and userStats[watch_time_by_title] for each title
+ *
+ * @function
+ * @param {string} normalizedTitle - Normalized title used as the key
+ * @param {int} type - TV Show (1) or Movie (0)
+ * @param {int} timeWatched - Number of minutes watched
+ */
+function logWatchTime(normalizedTitle, type, timeWatched) {
+  userStats.totalWatchTime += timeWatched;
+
+  if (userStats[normalizedTitle]) {
+    userStats.watchTimeByTitle[normalizedTitle].minutes += timeWatched;
   } else {
-    watchTimeByTitle[key] = { minutes: timeWatched, original: parsedTitle };
+    userStats.watchTimeByTitle[normalizedTitle] = {
+      type: type,
+      minutes: timeWatched,
+    };
   }
 }
 
@@ -443,32 +431,101 @@ function logWatchTime(parsedTitle, timeWatched) {
  * Prints userStats["total_watch_time"] of the user
  */
 function getTotalWatchTime() {
-  console.log(`${userStats.total_watch_time} minutes`);
+  console.log(`${userStats.totalWatchTime} minutes`);
   console.log(
-    `That’s about ${(userStats.total_watch_time / 60).toFixed(2)} hours`,
+    `That’s about ${(userStats.totalWatchTime / 60).toFixed(2)} hours`,
   );
 }
+
+/*
+ * ------------------------------
+ *    TOP WATCHED TITLES
+ * ------------------------------
+ */
 
 /**
  * Prints Top 5 Watched Titles by Watch Time
  */
 function getTopWatchedTitles() {
-  Object.entries(watchTimeByTitle)
+  Object.entries(userStats.watchTimeByTitle)
     .sort((a, b) => b[1].minutes - a[1].minutes)
     .slice(0, 5)
     .forEach(([key, data]) => {
-      console.log(`${data.original}: ${data.minutes} minutes`);
+      console.log(
+        `${helper.getOriginalTitle(normalizedToOriginal, key)}: ${data.minutes} minutes`,
+      );
     });
 }
+
+/*
+ * ------------------------------
+ *  MOST WATCHED TITLE (SINGULAR)
+ * ------------------------------
+ */
 
 /**
  * Prints Most Watched Title
  */
 function getMostWatchedTitle() {
-  const [_, mostWatched] = Object.entries(watchTimeByTitle).sort(
+  const [title, mostWatched] = Object.entries(userStats.watchTimeByTitle).sort(
     (a, b) => b[1].minutes - a[1].minutes,
   )[0];
-  console.log(`${mostWatched.original} (${mostWatched.minutes} minutes)`);
+  console.log(
+    `${helper.getOriginalTitle(normalizedToOriginal, title)} (${mostWatched.minutes} minutes)`,
+  );
+}
+
+/*
+ * ------------------------------
+ *     MOST BINGED SHOW
+ * ------------------------------
+ */
+
+/*
+ * A binge is defined as a show you've watched back-to-back a minimum of once within 24 hours of the previous episode.
+ */
+function logMostBingedShow() {
+  let mostBingedShow = "";
+  let longestStreak = 1;
+
+  for (const [title, value] of Object.entries(titleToDateFreq)) {
+    // Sorted Dates - Descending Fashion
+    let dateList = value.datesWatched.sort((a, b) => a - b);
+    let min_ep_count = 0;
+    let currentStreak = 1;
+
+    // Going through the dates of each Title
+    for (let i = 1; i < dateList.length; i++) {
+      // Check if next episode was watched within 24 hours
+      if ((dateList[i] - dateList[i - 1]) / (1000 * 60 * 60) < 24) {
+        min_ep_count += 1;
+      }
+
+      if (min_ep_count >= 3) {
+        currentStreak += 1;
+      } else {
+        currentStreak = 1;
+      }
+
+      if (currentStreak > longestStreak) {
+        mostBingedShow = title;
+        longestStreak = currentStreak;
+      }
+    }
+  }
+
+  userStats.mostBingedShow = {
+    title: mostBingedShow,
+    days: longestStreak,
+  };
+}
+
+function getMostBingedShow() {
+  const title = helper.getOriginalTitle(
+    normalizedToOriginal,
+    userStats.mostBingedShow.title,
+  );
+  console.log(`${title}: ${userStats.mostBingedShow.days} days!`);
 }
 
 // ========================================
@@ -481,20 +538,20 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/api/stats", (req, res) => {
-  const mostWatched = Object.entries(watchTimeByTitle).sort(
+  const mostWatched = Object.entries(userStats.watchTimeByTitle).sort(
     (a, b) => b[1].minutes - a[1].minutes,
   )[0];
 
-  const top5Titles = Object.entries(watchTimeByTitle)
+  const top5Titles = Object.entries(userStats.watchTimeByTitle)
     .sort((a, b) => b[1].minutes - a[1].minutes)
     .slice(0, 5)
     .map(([key, val]) => [val.original, val.minutes]);
 
   res.json({
-    topGenres: userStats.top_genres,
-    uniqueTitles: userStats.unique_titles_watched.size,
-    totalWatchTimeMinutes: userStats.total_watch_time,
-    totalWatchTimeHours: userStats.total_watch_time / 60,
+    topGenres: userStats.topGenres,
+    uniqueTitles: userStats.numUniqueTitlesWatched.size,
+    totalWatchTimeMinutes: userStats.totalWatchTime,
+    totalWatchTimeHours: userStats.totalWatchTime / 60,
     topTitles: top5Titles,
     mostWatched: {
       title: mostWatched?.[1].original || "",
@@ -502,8 +559,8 @@ app.get("/api/stats", (req, res) => {
     },
     mostBinged: {
       title:
-        watchTimeByTitle[userStats.most_binged_show]?.original ||
-        userStats.most_binged_show ||
+        userStats.watchTimeByTitle[userStats.mostBingedShow]?.original ||
+        userStats.mostBingedShow ||
         "N/A",
       streak: userStats.longest_binge_streak || 0,
     },
