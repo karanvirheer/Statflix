@@ -14,8 +14,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-// const filePath = "./ViewingActivity.csv";
-const filePath = "./big.csv";
+const filePath = "./ViewingActivity.csv";
+// const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
@@ -35,24 +35,50 @@ const userStats = {
   // [ [ 'Drama', 175 ], [ 'Comedy', 129 ], [ 'Romance', 64 ] ]
   topGenres: [],
 
-  // TMDb ID or Title String?
-  mostBingedShow: {},
-
   // int
-  numUniqueTitlesWatched: new Set(),
+  numUniqueTitlesWatched: 0,
 
   // int
   totalWatchTime: 0,
 
   // dict
-  // { "Sherlock": 200, "Gossip Girl": 450, ...}
+  // {
+  //  title: {
+  //    type: "",
+  //    minutes: 0,
+  //  },
+  //  ...
+  // }
   watchTimeByTitle: {},
 
-  // TMDb ID or Title String?
-  mostWatchedShow: "",
+  // dict
+  // {
+  //  title: {
+  //    type: "",
+  //    minutes: 0,
+  //  },
+  //  ...
+  // }
+  topWatchedTitles: {},
 
   // TMDb ID or Title String?
-  oldestWatchedShow: "",
+  mostBingedShow: {
+    title: "",
+    eps_binged: 0,
+    dates_binged: [],
+  },
+
+  // TMDb ID or Title String?
+  mostWatchedTitle: {
+    title: "",
+    minutes: 0,
+  },
+
+  // TMDb ID or Title String?
+  oldestWatchedTitle: {
+    title: "",
+    date: "",
+  },
 
   // int
   numShowsCompleted: 0,
@@ -196,6 +222,9 @@ async function getData(normalizedTitle) {
     logWatchTime(normalizedTitle, type, timeWatched);
     logTopGenres(result.genres);
     logMostBingedShow();
+    logUniqueTitlesWatched();
+    logTopWatchedTitles();
+    logMostWatchedTitle();
 
     return result;
   }
@@ -270,40 +299,6 @@ function parseCSV() {
   });
 }
 
-// function getMostBingedShow(titleDateMap) {
-//   let mostBinged = "";
-//   let longestStreak = 0;
-//
-//   for (const [title, dateList] of Object.entries(titleDateMap)) {
-//     // Sort dates for this title
-//     const sortedDates = dateList
-//       .filter(Boolean)
-//       .map((d) => new Date(d)) // <- No point doing this here when getDate() exists
-//       .sort((a, b) => a - b);
-//
-//     let currentStreak = 1;
-//     let maxStreak = 1;
-//
-//     for (let i = 1; i < sortedDates.length; i++) {
-//       const diff = (sortedDates[i] - sortedDates[i - 1]) / (1000 * 3600 * 24);
-//       if (diff === 1) {
-//         currentStreak++;
-//         maxStreak = Math.max(maxStreak, currentStreak);
-//       } else {
-//         currentStreak = 1;
-//       }
-//     }
-//
-//     if (maxStreak > longestStreak) {
-//       longestStreak = maxStreak;
-//       mostBinged = title;
-//     }
-//   }
-//
-//   userStats.mostBingedShow = mostBinged;
-//   userStats.longest_binge_streak = longestStreak;
-// }
-
 /*
  * ==============================
  *        STATISTICS FUNCTIONS
@@ -319,7 +314,7 @@ function printUserStats() {
     getTopGenres();
   }
 
-  if (userStats.numUniqueTitlesWatched.size > 0) {
+  if (userStats.numUniqueTitlesWatched > 0) {
     helper.print("UNIQUE TITLES WATCHED");
     getUniqueTitlesWatched();
   }
@@ -335,22 +330,10 @@ function printUserStats() {
     getMostWatchedTitle();
   }
 
-  if (userStats.mostBingedShow) {
+  if (userStats.mostBingedShow.eps_binged > 0) {
     helper.print("MOST BINGED SHOW");
     getMostBingedShow();
   }
-
-  // const bingeKey = userStats.mostBingedShow;
-  // if (bingeKey) {
-  //   const originalTitle = watchTimeByTitle[bingeKey]?.original || bingeKey;
-  //   const streak = userStats.longest_binge_streak;
-  //
-  //   console.log("=======================");
-  //   console.log(
-  //     `MOST BINGED SHOW: ${originalTitle} (Longest streak: ${streak} days)`,
-  //   );
-  //   console.log("=======================");
-  // }
 }
 
 /*
@@ -393,11 +376,15 @@ function getTopGenres() {
  * ------------------------------
  */
 
+function logUniqueTitlesWatched() {
+  userStats.numUniqueTitlesWatched = Object.keys(titleToDateFreq).length;
+}
+
 /**
  * Prints Total Unique Titles Watched of the user
  */
 function getUniqueTitlesWatched() {
-  console.log(Object.keys(titleToDateFreq).length);
+  console.log(userStats.numUniqueTitlesWatched);
 }
 
 /*
@@ -417,7 +404,7 @@ function getUniqueTitlesWatched() {
 function logWatchTime(normalizedTitle, type, timeWatched) {
   userStats.totalWatchTime += timeWatched;
 
-  if (userStats[normalizedTitle]) {
+  if (userStats.watchTimeByTitle[normalizedTitle]) {
     userStats.watchTimeByTitle[normalizedTitle].minutes += timeWatched;
   } else {
     userStats.watchTimeByTitle[normalizedTitle] = {
@@ -443,18 +430,21 @@ function getTotalWatchTime() {
  * ------------------------------
  */
 
+function logTopWatchedTitles() {
+  userStats.topWatchedTitles = Object.entries(userStats.watchTimeByTitle)
+    .sort((a, b) => b[1].minutes - a[1].minutes)
+    .slice(0, 5);
+}
+
 /**
  * Prints Top 5 Watched Titles by Watch Time
  */
 function getTopWatchedTitles() {
-  Object.entries(userStats.watchTimeByTitle)
-    .sort((a, b) => b[1].minutes - a[1].minutes)
-    .slice(0, 5)
-    .forEach(([key, data]) => {
-      console.log(
-        `${helper.getOriginalTitle(normalizedToOriginal, key)}: ${data.minutes} minutes`,
-      );
-    });
+  userStats.topWatchedTitles.forEach(([key, data]) => {
+    console.log(
+      `${helper.getOriginalTitle(normalizedToOriginal, key)}: ${data.minutes} minutes`,
+    );
+  });
 }
 
 /*
@@ -466,12 +456,21 @@ function getTopWatchedTitles() {
 /**
  * Prints Most Watched Title
  */
-function getMostWatchedTitle() {
+function logMostWatchedTitle() {
   const [title, mostWatched] = Object.entries(userStats.watchTimeByTitle).sort(
     (a, b) => b[1].minutes - a[1].minutes,
   )[0];
+
+  userStats.mostWatchedTitle.title = helper.getOriginalTitle(
+    normalizedToOriginal,
+    title,
+  );
+  userStats.mostWatchedTitle.minutes = mostWatched.minutes;
+}
+
+function getMostWatchedTitle() {
   console.log(
-    `${helper.getOriginalTitle(normalizedToOriginal, title)} (${mostWatched.minutes} minutes)`,
+    `${userStats.mostWatchedTitle.title} (${userStats.mostWatchedTitle.minutes} minutes)`,
   );
 }
 
@@ -485,38 +484,75 @@ function getMostWatchedTitle() {
  * A binge is defined as a show you've watched back-to-back a minimum of once within 24 hours of the previous episode.
  */
 function logMostBingedShow() {
+  function getHourDiff(date2, date1) {
+    return (date2 - date1) / (1000 * 60 * 60);
+  }
+
   let mostBingedShow = "";
-  let longestStreak = 1;
+
+  // Dates the show was binged on
+  let mostBingedDates = [];
+
+  // Longest number of episodes binged of a show
+  let longestBingeStreak = 1;
+
+  // 2 hour gap allowed between eps
+  const minEpisodeGap = 2;
 
   for (const [title, value] of Object.entries(titleToDateFreq)) {
     // Sorted Dates - Descending Fashion
     let dateList = value.datesWatched.sort((a, b) => a - b);
-    let min_ep_count = 0;
-    let currentStreak = 1;
+
+    // Current longest streak of episodes binged of title
+    let currentBingeStreak = 1;
+
+    let epsWatchedConsecutively = 1;
+
+    let currBingedDates = [dateList[0]];
+    // let dateStartedBinge = null;
 
     // Going through the dates of each Title
     for (let i = 1; i < dateList.length; i++) {
-      // Check if next episode was watched within 24 hours
-      if ((dateList[i] - dateList[i - 1]) / (1000 * 60 * 60) < 24) {
-        min_ep_count += 1;
-      }
+      // if (dateStartedBinge == null) {
+      //   dateStartedBinge = dateList[i - 1];
+      //   dates.push(dateList[i - 1]);
+      // }
 
-      if (min_ep_count >= 3) {
-        currentStreak += 1;
+      const diff = getHourDiff(dateList[i], dateList[i - 1]);
+
+      // Episodes watched within the same day
+      if (diff <= minEpisodeGap) {
+        epsWatchedConsecutively += 1;
+        currentBingeStreak += 1;
+        currBingedDates.push(dateList[i]);
+
+        // Continue binge streak ONLY if you've watched 3 eps back-to-back already
+      } else if (epsWatchedConsecutively >= 3 && diff < 30) {
+        // reset consecutive count because you stopped watching back-to-back
+        epsWatchedConsecutively = 1;
+        currentBingeStreak += 1;
+        currBingedDates.push(dateList[i]);
+
+        // FULL RESET
+        // Episodes not watched within minEpisodeGap
+        // Did not meet epsWatchedConsecutively >= 3 to keep streak alive
       } else {
-        currentStreak = 1;
+        epsWatchedConsecutively = 1;
+        currentBingeStreak = 1;
+        currBingedDates = [];
       }
 
-      if (currentStreak > longestStreak) {
+      if (currentBingeStreak > longestBingeStreak) {
         mostBingedShow = title;
-        longestStreak = currentStreak;
+        longestBingeStreak = currentBingeStreak;
+        mostBingedDates = currBingedDates;
       }
     }
   }
-
   userStats.mostBingedShow = {
     title: mostBingedShow,
-    days: longestStreak,
+    eps_binged: longestBingeStreak,
+    dates_binged: mostBingedDates,
   };
 }
 
@@ -525,7 +561,15 @@ function getMostBingedShow() {
     normalizedToOriginal,
     userStats.mostBingedShow.title,
   );
-  console.log(`${title}: ${userStats.mostBingedShow.days} days!`);
+
+  const dates = userStats.mostBingedShow.dates_binged;
+  const startBinge = dates[0].toDateString();
+  const endBinge = dates[dates.length - 1].toDateString();
+
+  console.log(
+    `${title}: ${userStats.mostBingedShow.eps_binged} episodes watched back-to-back!`,
+  );
+  console.log(`You binged from ${startBinge} to ${endBinge}!`);
 }
 
 // ========================================
