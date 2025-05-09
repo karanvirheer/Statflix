@@ -14,8 +14,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-const filePath = "./ViewingActivity.csv";
-// const filePath = "./big.csv";
+// const filePath = "./ViewingActivity.csv";
+const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
@@ -223,7 +223,6 @@ async function getData(normalizedTitle) {
     logWatchTime(normalizedTitle, type, timeWatched);
     logTopGenres(result.genres);
     logMostBingedShow();
-    logUniqueTitlesWatched();
     logTopWatchedTitles();
     logMostWatchedTitle();
 
@@ -274,6 +273,7 @@ function parseCSV() {
               datesWatched: [],
               titleFrequency: 0,
             };
+            logUniqueTitlesWatched();
           }
           titleToDateFreq[normalizedTitle].titleFrequency += 1;
           titleToDateFreq[normalizedTitle].datesWatched.push(date);
@@ -387,7 +387,7 @@ function getTopGenres() {
  */
 
 function logUniqueTitlesWatched() {
-  userStats.numUniqueTitlesWatched = Object.keys(titleToDateFreq).length;
+  userStats.numUniqueTitlesWatched += 1;
 }
 
 /**
@@ -589,7 +589,11 @@ function getMostBingedShow() {
  */
 
 function logNumShowsCompleted(numEps, showName) {
-  if (numEps == helper.getTitleWatchFrequency(titleToDateFreq, showName)) {
+  let titleFrequency = helper.getTitleWatchFrequency(titleToDateFreq, showName);
+
+  // helper.print(`${showName} || API: ${numEps} || USER: ${titleFrequency}`);
+
+  if (titleFrequency >= numEps) {
     userStats.showsCompleted[0] += 1;
     userStats.showsCompleted.push(showName);
   }
