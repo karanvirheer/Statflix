@@ -49,22 +49,6 @@ export function verifyMovieOrShow(data) {
 /**
  * Helper Function
  *
- * Normalizes a title string to use as a consistent key.
- * Strips special characters, lowercases, and trims.
- *
- * @param {string} title - The raw or parsed title
- * @returns {string} Normalized title string
- */
-export function normalizeTitle(title) {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/gi, "");
-}
-
-/**
- * Helper Function
- *
  * Returns the title before it was normalized.
  * This is also known as the Original Title
  *
@@ -92,6 +76,22 @@ export function getTitleWatchFrequency(titleToDateFreq, normalizedTitle) {
  *        PARSING FUNCTIONS
  * ==============================
  */
+
+/**
+ * Helper Function
+ *
+ * Normalizes a title string to use as a consistent key.
+ * Strips special characters, lowercases, and trims.
+ *
+ * @param {string} title - The raw or parsed title
+ * @returns {string} Normalized title string
+ */
+export function normalizeTitle(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/gi, "");
+}
 
 /**
  * Parses the CSV Title and gets the TMDb Searchable Title
