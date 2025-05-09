@@ -61,27 +61,28 @@ const userStats = {
   // }
   topWatchedTitles: {},
 
-  // TMDb ID or Title String?
+  // dict
   mostBingedShow: {
     title: "",
     eps_binged: 0,
     dates_binged: [],
   },
 
-  // TMDb ID or Title String?
+  // dict
   mostWatchedTitle: {
     title: "",
     minutes: 0,
   },
 
-  // TMDb ID or Title String?
+  // dict
   oldestWatchedTitle: {
     title: "",
     date: "",
   },
 
-  // int
-  numShowsCompleted: 0,
+  // dict
+  // { int, ... string (title) }
+  showsCompleted: [0],
 };
 
 let titleToDateFreq = {};
@@ -226,6 +227,10 @@ async function getData(normalizedTitle) {
     logTopWatchedTitles();
     logMostWatchedTitle();
 
+    if (type == 0) {
+      logNumShowsCompleted(result.number_of_episodes, result.normalized_title);
+    }
+
     return result;
   }
 
@@ -333,6 +338,11 @@ function printUserStats() {
   if (userStats.mostBingedShow.eps_binged > 0) {
     helper.print("MOST BINGED SHOW");
     getMostBingedShow();
+  }
+
+  if (userStats.showsCompleted.length > 0) {
+    helper.print("NUMBER OF SHOWS COMPLETED");
+    getNumShowsCompleted();
   }
 }
 
@@ -570,6 +580,26 @@ function getMostBingedShow() {
     `${title}: ${userStats.mostBingedShow.eps_binged} episodes watched back-to-back!`,
   );
   console.log(`You binged from ${startBinge} to ${endBinge}!`);
+}
+
+/*
+ * ------------------------------
+ *     NUMBER OF SHOWS COMPLETED
+ * ------------------------------
+ */
+
+function logNumShowsCompleted(numEps, showName) {
+  if (numEps == helper.getTitleWatchFrequency(titleToDateFreq, showName)) {
+    userStats.showsCompleted[0] += 1;
+    userStats.showsCompleted.push(showName);
+  }
+}
+
+function getNumShowsCompleted() {
+  console.log(`Amount Completed: ${userStats.showsCompleted[0]}`);
+  for (let i = 1; i < userStats.showsCompleted.length; i++) {
+    console.log(userStats.showsCompleted[i]);
+  }
 }
 
 // ========================================
