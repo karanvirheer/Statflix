@@ -120,19 +120,32 @@ async function main() {
 }
 
 async function getDataFromTMDB(title) {
-  const output = await api.searchTVAndMovie(title);
-  const titleData = output?.results?.[0];
+  let output = await api.searchTVAndMovie(title);
+  output = output?.results;
+
+  let titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
+
+  // let titleData = output?.results?.[0];
   let titleType = 0;
 
-  try {
-    if (titleData.media_type == "movie") {
+  // Fallback to TVShow or Movie Search APIs
+  // Use the one with the highest vote_count
+  if (titleData.media_type === "person") {
+    const showOutput = await api.searchTVShow(title);
+    const showData = showOutput?.results?.[0];
+
+    const movieOutput = await api.searchMovie(title);
+    const movieData = movieOutput?.results?.[0];
+
+    if (showData?.vote_average >= movieData?.vote_average) {
+      titleData = showData;
+      titleType = 1;
+    } else {
+      titleData = movieData;
       titleType = 1;
     }
-  } catch (err) {
-    if (err instanceof TypeError) {
-      console.log(`Title: ${title}`);
-      throw err;
-    }
+  } else if (titleData.media_type === "movie") {
+    titleType = 1;
   }
 
   return [titleData, titleType];
@@ -315,14 +328,12 @@ function parseCSV() {
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (row) => {
-        if (
-          helper.validateString(row.Title) &&
-          helper.validateString(row.Date)
-        ) {
+        if (helper.validString(row.Title) && helper.validString(row.Date)) {
           const originalTitle = helper.getTitle(row.Title);
           const normalizedTitle = helper.normalizeTitle(originalTitle);
 
-          if (helper.validateString(normalizedTitle)) {
+          // In case there is an empty normalizedTitle
+          if (helper.validString(normalizedTitle)) {
             const date = helper.getDate(row.Date);
 
             normalizedToOriginal[normalizedTitle] = originalTitle;
