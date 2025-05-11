@@ -36,7 +36,11 @@ const userStats = {
   topGenres: [],
 
   // int
-  numUniqueTitlesWatched: 0,
+  numUniqueTitlesWatched: {
+    total: 0,
+    tvShows: 0,
+    movies: 0,
+  },
 
   // int
   totalWatchTime: 0,
@@ -75,14 +79,27 @@ const userStats = {
   },
 
   // dict
-  oldestWatchedTitle: {
+  oldestWatchedShow: {
     title: "",
+    dateObject: null,
+    date: "",
+  },
+
+  // dict
+  oldestWatchedMovie: {
+    title: "",
+    dateObject: null,
     date: "",
   },
 
   // dict
   // { int, ... string (title) }
   showsCompleted: [0],
+
+  missedTitles: {
+    count: 0,
+    titlesArr: [],
+  },
 };
 
 let titleToDateFreq = {};
@@ -100,6 +117,25 @@ async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
   await parseCSV();
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
+}
+
+async function getDataFromTMDB(title) {
+  const output = await api.searchTVAndMovie(title);
+  const titleData = output?.results?.[0];
+  let titleType = 0;
+
+  try {
+    if (titleData.media_type == "movie") {
+      titleType = 1;
+    }
+  } catch (err) {
+    if (err instanceof TypeError) {
+      console.log(`Title: ${title}`);
+      throw err;
+    }
+  }
+
+  return [titleData, titleType];
 }
 
 /**
@@ -135,21 +171,28 @@ async function getData(normalizedTitle) {
     normalizedTitle,
   );
 
+  const titleFrequency = helper.getTitleWatchFrequency(
+    titleToDateFreq,
+    normalizedTitle,
+  );
+
   // 0 - TV Show [ Default ]
   // 1 - Movie
-  let type = 0;
   let detailsData = {};
-  let result = {};
+  let watchProvidersData = {};
 
-  // Not in cache
-  // Search TV/Movie using API
-  let data = await api.searchTVShow(originalTitle);
+  // // Not in cache
+  // // Search TV/Movie using API
+  // let data = await api.searchTVShow(originalTitle);
+  //
+  // // Check if it is truly a TV Show
+  // if (helper.verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
+  //   data = await api.searchMovie(originalTitle);
+  //   type = 1;
+  // }
 
-  // Check if it is truly a TV Show
-  if (helper.verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
-    data = await api.searchMovie(originalTitle);
-    type = 1;
-  }
+  console.log(normalizedTitle);
+  let [match, type] = await getDataFromTMDB(originalTitle);
 
   // ====================
   // SECTION BEGIN
@@ -159,13 +202,16 @@ async function getData(normalizedTitle) {
   // ====================
 
   let timeWatched = 0;
-  const titleFrequency = helper.getTitleWatchFrequency(
-    titleToDateFreq,
-    normalizedTitle,
-  );
-
-  const match = data?.results?.[0];
+  let result = {};
+  // const match = data?.results?.[0];
   if (match) {
+    // if (type == 0) {
+    //   watchProvidersData = await api.searchTVWatchProvider(match.id);
+    // } else {
+    //   watchProvidersData = await api.searchMovieWatchProvider(match.id);
+    // }
+    //
+    // if (helper.isAvailableOnNetflix(watchProvidersData)) {
     // TV Show
     if (type == 0) {
       detailsData = await api.getTVDetails(match.id);
@@ -221,18 +267,26 @@ async function getData(normalizedTitle) {
     // STATISTICS FUNCTION CALLS
     // =========================
     logWatchTime(normalizedTitle, type, timeWatched);
+    logUniqueShowsAndMovies(type);
     logTopGenres(result.genres);
     logMostBingedShow();
     logTopWatchedTitles();
     logMostWatchedTitle();
+    logOldestWatchedShowAndMovie(
+      type,
+      result.release_date || result.first_air_date,
+      result.normalized_title,
+    );
 
     if (type == 0) {
       logNumShowsCompleted(result.number_of_episodes, result.normalized_title);
     }
 
     return result;
+  } else {
+    // logMissedTitles(match, type);
+    // }
   }
-
   // Optional delay to avoid hammering the API in case of no result
   // Pause execution until the Promise is resolved
   // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
@@ -261,25 +315,31 @@ function parseCSV() {
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (row) => {
-        if (row.Title && row.Date) {
+        if (
+          helper.validateString(row.Title) &&
+          helper.validateString(row.Date)
+        ) {
           const originalTitle = helper.getTitle(row.Title);
           const normalizedTitle = helper.normalizeTitle(originalTitle);
-          const date = helper.getDate(row.Date);
 
-          normalizedToOriginal[normalizedTitle] = originalTitle;
+          if (helper.validateString(normalizedTitle)) {
+            const date = helper.getDate(row.Date);
 
-          if (!titleToDateFreq[normalizedTitle]) {
-            titleToDateFreq[normalizedTitle] = {
-              datesWatched: [],
-              titleFrequency: 0,
-            };
-            logUniqueTitlesWatched();
+            normalizedToOriginal[normalizedTitle] = originalTitle;
+
+            if (!titleToDateFreq[normalizedTitle]) {
+              titleToDateFreq[normalizedTitle] = {
+                datesWatched: [],
+                titleFrequency: 0,
+              };
+              logUniqueTitlesWatched();
+            }
+            titleToDateFreq[normalizedTitle].titleFrequency += 1;
+            titleToDateFreq[normalizedTitle].datesWatched.push(date);
+
+            titleList.push(originalTitle);
+            dateList.push(date);
           }
-          titleToDateFreq[normalizedTitle].titleFrequency += 1;
-          titleToDateFreq[normalizedTitle].datesWatched.push(date);
-
-          titleList.push(originalTitle);
-          dateList.push(date);
         }
       })
       .on("end", async () => {
@@ -292,8 +352,6 @@ function parseCSV() {
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
-
-          // getMostBingedShow(titleDateMap);
           printUserStats();
 
           resolve({ titleList, dateList });
@@ -319,7 +377,7 @@ function printUserStats() {
     getTopGenres();
   }
 
-  if (userStats.numUniqueTitlesWatched > 0) {
+  if (userStats.numUniqueTitlesWatched.total > 0) {
     helper.print("UNIQUE TITLES WATCHED");
     getUniqueTitlesWatched();
   }
@@ -340,9 +398,24 @@ function printUserStats() {
     getMostBingedShow();
   }
 
-  if (userStats.showsCompleted.length > 0) {
+  if (userStats.showsCompleted.length > 1) {
     helper.print("NUMBER OF SHOWS COMPLETED");
     getNumShowsCompleted();
+  }
+
+  if (userStats.oldestWatchedShow.title != "") {
+    helper.print("OLDEST WATCHED SHOW");
+    getOldestWatchedShow();
+  }
+
+  if (userStats.oldestWatchedMovie.title != "") {
+    helper.print("OLDEST WATCHED MOVIE");
+    getOldestWatchedMovie();
+  }
+
+  if (userStats.missedTitles.count > 0) {
+    helper.print("MISSED TITLES");
+    getMissedTitles();
   }
 }
 
@@ -386,15 +459,25 @@ function getTopGenres() {
  * ------------------------------
  */
 
+function logUniqueShowsAndMovies(type) {
+  if (type == 0) {
+    userStats.numUniqueTitlesWatched.tvShows += 1;
+  } else {
+    userStats.numUniqueTitlesWatched.movies += 1;
+  }
+}
+
 function logUniqueTitlesWatched() {
-  userStats.numUniqueTitlesWatched += 1;
+  userStats.numUniqueTitlesWatched.total += 1;
 }
 
 /**
  * Prints Total Unique Titles Watched of the user
  */
 function getUniqueTitlesWatched() {
-  console.log(userStats.numUniqueTitlesWatched);
+  console.log(`Total Titles: ${userStats.numUniqueTitlesWatched.total}`);
+  console.log(`Total TV Shows: ${userStats.numUniqueTitlesWatched.tvShows}`);
+  console.log(`Total Movies: ${userStats.numUniqueTitlesWatched.movies}`);
 }
 
 /*
@@ -604,6 +687,82 @@ function getNumShowsCompleted() {
   for (let i = 1; i < userStats.showsCompleted.length; i++) {
     console.log(userStats.showsCompleted[i]);
   }
+}
+
+/*
+ * ------------------------------
+ *     OLDEST WATCHED SHOW
+ * ------------------------------
+ */
+
+function logOldestWatchedShowAndMovie(type, release_date, title) {
+  let date = new Date(release_date);
+  // TV Show
+  if (type == 0) {
+    if (userStats.oldestWatchedShow.title == "") {
+      userStats.oldestWatchedShow = {
+        title: title,
+        dateObject: date,
+        date: date.toDateString(),
+      };
+    } else if (date < userStats.oldestWatchedShow.dateObject) {
+      userStats.oldestWatchedShow = {
+        title: title,
+        dateObject: date,
+        date: date.toDateString(),
+      };
+    }
+    // Movie
+  } else {
+    if (userStats.oldestWatchedMovie.title == "") {
+      userStats.oldestWatchedMovie = {
+        title: title,
+        dateObject: date,
+        date: date.toDateString(),
+      };
+    } else if (date < userStats.oldestWatchedMovie.dateObject) {
+      userStats.oldestWatchedMovie = {
+        title: title,
+        dateObject: date,
+        date: date.toDateString(),
+      };
+    }
+  }
+}
+
+function getOldestWatchedShow() {
+  console.log(
+    `${userStats.oldestWatchedShow.title}: ${userStats.oldestWatchedShow.date}`,
+  );
+}
+
+function getOldestWatchedMovie() {
+  console.log(
+    `${userStats.oldestWatchedMovie.title}: ${userStats.oldestWatchedMovie.date}`,
+  );
+}
+
+/*
+ * ------------------------------
+ *     MISSING TITLES
+ * ------------------------------
+ */
+function logMissedTitles(match, type) {
+  userStats.missedTitles.count += 1;
+
+  if (type == 0) {
+    userStats.missedTitles.titlesArr.push(match.original_name);
+  } else {
+    userStats.missedTitles.titlesArr.push(match.original_title);
+  }
+}
+
+function getMissedTitles() {
+  console.log(`Missed: ${userStats.missedTitles.count}`);
+  console.log(userStats.missedTitles.titlesArr);
+  // for (const title in userStats.missedTitles.titlesArr) {
+  //   console.log(title);
+  // }
 }
 
 // ========================================
