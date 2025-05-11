@@ -102,25 +102,37 @@ export function normalizeTitle(title) {
  */
 export function getTitle(rawTitle) {
   let parsedTitle = "";
+  let type = 2;
+
   switch (true) {
+    // TV Show
     case rawTitle.includes("Season"):
       parsedTitle = rawTitle.split(/(?=\s*Season)/i);
+      type = 0;
       break;
+    // TV Show
     case rawTitle.includes("Limited Series"):
       parsedTitle = rawTitle.split(/(?=\s*Limited Series)/i);
+      type = 0;
       break;
+    // TV Show
+    case rawTitle.includes("Episode"):
+      parsedTitle = rawTitle.split(/(?=\s*Episode)/i);
+      type = 0;
+      break;
+    // Either
     case rawTitle.includes("Volume"):
       parsedTitle = rawTitle.split(/(?=\s*Volume)/i);
       break;
+    // Either
     case rawTitle.includes("Part"):
       parsedTitle = rawTitle.split(/(?=\s*Part)/i);
       break;
+    // Either
     case rawTitle.includes("Chapter"):
       parsedTitle = rawTitle.split(/(?=\s*Chapter)/i);
       break;
-    case rawTitle.includes("Episode"):
-      parsedTitle = rawTitle.split(/(?=\s*Episode)/i);
-      break;
+    // Either
     case rawTitle.includes(":"):
       parsedTitle = rawTitle.split(/(?=\s*:)/i);
       break;
@@ -131,7 +143,7 @@ export function getTitle(rawTitle) {
       break;
   }
 
-  return rawTitle.split(":")[0].trim();
+  return [rawTitle.split(":")[0].trim(), type];
 }
 
 /**

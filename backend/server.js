@@ -104,6 +104,7 @@ const userStats = {
 
 let titleToDateFreq = {};
 let normalizedToOriginal = {};
+let titleToType = {};
 
 /*
  * ==============================
@@ -119,36 +120,51 @@ async function main() {
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
-async function getDataFromTMDB(title) {
-  let output = await api.searchTVAndMovie(title);
-  output = output?.results;
-
-  let titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
-
-  // let titleData = output?.results?.[0];
+async function getDataFromTMDB(normalizedTitle, originalTitle) {
+  // Default TV Show
   let titleType = 0;
+  let titleData = null;
 
-  // Fallback to TVShow or Movie Search APIs
-  // Use the one with the highest vote_count
-  if (titleData.media_type === "person") {
-    const showOutput = await api.searchTVShow(title);
-    const showData = showOutput?.results?.[0];
+  // Title is TV Show or Movie -> Use API to figure out
+  if (titleToType[normalizedTitle] == 2) {
+    let output = await api.searchTVAndMovie(originalTitle);
+    output = output?.results;
 
-    const movieOutput = await api.searchMovie(title);
-    const movieData = movieOutput?.results?.[0];
+    titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
 
-    if (showData?.vote_average >= movieData?.vote_average) {
-      titleData = showData;
-      titleType = 1;
-    } else {
-      titleData = movieData;
+    titleType = 0;
+
+    // Fallback to TVShow or Movie Search APIs
+    // Use the one with the highest vote_count
+    if (titleData.media_type === "person") {
+      const showOutput = await api.searchTVShow(originalTitle);
+      const showData = showOutput?.results?.[0];
+
+      const movieOutput = await api.searchMovie(originalTitle);
+      const movieData = movieOutput?.results?.[0];
+
+      if (showData?.vote_count >= movieData?.vote_count) {
+        titleData = showData;
+        titleType = 0;
+      } else {
+        titleData = movieData;
+        titleType = 1;
+      }
+    } else if (titleData.media_type === "movie") {
       titleType = 1;
     }
-  } else if (titleData.media_type === "movie") {
-    titleType = 1;
+
+    titleToType[normalizedTitle] = titleType;
+
+    // Title is a TV Show
+  } else if (titleToType[normalizedTitle] == 0) {
+    let output = await api.searchTVShow(originalTitle);
+    output = output?.results;
+
+    titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
   }
 
-  return [titleData, titleType];
+  return titleData;
 }
 
 /**
@@ -192,21 +208,10 @@ async function getData(normalizedTitle) {
   // 0 - TV Show [ Default ]
   // 1 - Movie
   let detailsData = {};
-  let watchProvidersData = {};
-
-  // // Not in cache
-  // // Search TV/Movie using API
-  // let data = await api.searchTVShow(originalTitle);
-  //
-  // // Check if it is truly a TV Show
-  // if (helper.verifyMovieOrShow(data?.results?.[0]) || !data?.results?.length) {
-  //   data = await api.searchMovie(originalTitle);
-  //   type = 1;
-  // }
 
   console.log(normalizedTitle);
-  let [match, type] = await getDataFromTMDB(originalTitle);
-
+  let match = await getDataFromTMDB(normalizedTitle, originalTitle);
+  let type = titleToType[normalizedTitle];
   // ====================
   // SECTION BEGIN
   //
@@ -216,16 +221,7 @@ async function getData(normalizedTitle) {
 
   let timeWatched = 0;
   let result = {};
-  // const match = data?.results?.[0];
   if (match) {
-    // if (type == 0) {
-    //   watchProvidersData = await api.searchTVWatchProvider(match.id);
-    // } else {
-    //   watchProvidersData = await api.searchMovieWatchProvider(match.id);
-    // }
-    //
-    // if (helper.isAvailableOnNetflix(watchProvidersData)) {
-    // TV Show
     if (type == 0) {
       detailsData = await api.getTVDetails(match.id);
       result = {
@@ -300,6 +296,7 @@ async function getData(normalizedTitle) {
     // logMissedTitles(match, type);
     // }
   }
+
   // Optional delay to avoid hammering the API in case of no result
   // Pause execution until the Promise is resolved
   // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
@@ -329,7 +326,7 @@ function parseCSV() {
       .pipe(csv())
       .on("data", (row) => {
         if (helper.validString(row.Title) && helper.validString(row.Date)) {
-          const originalTitle = helper.getTitle(row.Title);
+          const [originalTitle, type] = helper.getTitle(row.Title);
           const normalizedTitle = helper.normalizeTitle(originalTitle);
 
           // In case there is an empty normalizedTitle
@@ -337,6 +334,7 @@ function parseCSV() {
             const date = helper.getDate(row.Date);
 
             normalizedToOriginal[normalizedTitle] = originalTitle;
+            titleToType[normalizedTitle] = type;
 
             if (!titleToDateFreq[normalizedTitle]) {
               titleToDateFreq[normalizedTitle] = {
