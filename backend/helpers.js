@@ -149,3 +149,39 @@ export function getDate(rawDate) {
   }
   return date;
 }
+
+/**
+ * Helper Function
+ *
+ * Parses the Watch Providers API to verify if the title is on Netflix.
+ *
+ * @param {dict} watchProvidersData - Output from the Watch Providers TMDb API
+ * @returns {bool} True if the title is on Netflix, otherwise returns false.
+ */
+export function isAvailableOnNetflix(watchProvidersData) {
+  const PRIORITY_COUNTRIES = ["US", "GB", "CA", "AU", "IN"];
+  const data = watchProvidersData?.results;
+  for (const country in PRIORITY_COUNTRIES) {
+    const flatrate = data?.[country]?.flatrate || [];
+    if (flatrate.some((p) => p.provider_name === "Netflix")) {
+      return true;
+    }
+  }
+
+  for (const country in data) {
+    if (PRIORITY_COUNTRIES.includes(country)) continue;
+    const flatrate = data?.[country]?.flatrate || [];
+    if (flatrate.some((p) => p.provider_name === "Netflix")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function validString(str) {
+  if (typeof str === "string" && str.trim().length > 0) {
+    return true;
+  }
+  return false;
+}
