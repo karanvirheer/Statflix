@@ -10,6 +10,31 @@ const tmdb = axios.create({
 
 /*
  * ==============================
+ *        TV & MOVIE API
+ * ==============================
+ */
+
+/**
+ * Searches for a TV show
+ *
+ * @param {string} query - Title of TV show
+ * @returns {dict} All matching TV shows with that title
+ * Reference: https://developer.themoviedb.org/reference/search-tv
+ */
+const searchTVAndMovie = async (query) => {
+  try {
+    const res = await tmdb.get("/search/multi", {
+      params: { query, page: 1 },
+    });
+    return res.data;
+  } catch (err) {
+    console.error("Error fetching TV show:", err.response?.data || err.message);
+    return false;
+  }
+};
+
+/*
+ * ==============================
  *        TV SHOW API
  * ==============================
  */
@@ -24,7 +49,7 @@ const tmdb = axios.create({
 const searchTVShow = async (query) => {
   try {
     const res = await tmdb.get("/search/tv", {
-      params: { query },
+      params: { query, page: 1 },
     });
     return res.data;
   } catch (err) {
@@ -50,6 +75,26 @@ const getTVDetails = async (series_id) => {
   }
 };
 
+/**
+ * Searches for the platforms that stream this title
+ *
+ * @param {string} series_id - Id of the series
+ * @returns {dict} All watch provides for that title
+ * Reference: https://api.themoviedb.org/3/tv/{series_id}/watch/providers
+ */
+const searchTVWatchProvider = async (series_id) => {
+  try {
+    const res = await tmdb.get("/tv/" + String(series_id) + "/watch/providers");
+    return res.data;
+  } catch (err) {
+    console.error(
+      "Error fetching watch providers:",
+      err.response?.data || err.message,
+    );
+    return false;
+  }
+};
+
 /*
  * ==============================
  *        MOVIE API
@@ -66,7 +111,7 @@ const getTVDetails = async (series_id) => {
 const searchMovie = async (query) => {
   try {
     const res = await tmdb.get("/search/movie", {
-      params: { query },
+      params: { query, page: 1 },
     });
     return res.data;
   } catch (err) {
@@ -92,4 +137,34 @@ const getMovieDetails = async (movie_id) => {
   }
 };
 
-export { searchTVShow, searchMovie, getTVDetails, getMovieDetails };
+/**
+ * Searches for the platforms that have this movie
+ *
+ * @param {string} series_id - Id of the movie
+ * @returns {dict} All watch provides for that movie
+ * Reference: https://api.themoviedb.org/3/movie/{movie_id}/watch/providers
+ */
+const searchMovieWatchProvider = async (movie_id) => {
+  try {
+    const res = await tmdb.get(
+      "/movie/" + String(movie_id) + "/watch/providers",
+    );
+    return res.data;
+  } catch (err) {
+    console.error(
+      "Error fetching watch providers:",
+      err.response?.data || err.message,
+    );
+    return false;
+  }
+};
+
+export {
+  searchTVShow,
+  searchMovie,
+  getTVDetails,
+  getMovieDetails,
+  searchTVWatchProvider,
+  searchMovieWatchProvider,
+  searchTVAndMovie,
+};
