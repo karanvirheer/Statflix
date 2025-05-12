@@ -19,6 +19,9 @@ const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
+// const filePath = "./tests/Test03_ScoringTitles.csv";
+// const filePath = "./tests/Test04_1000_Titles_TVShowsOnly.csv";
+// const filePath = "./tests/Test05_MultipleUnique.csv";
 
 // Titles Cache
 const cache = {};
@@ -104,7 +107,35 @@ const userStats = {
 
 let titleToDateFreq = {};
 let normalizedToOriginal = {};
+let normalizedToFull = {};
 let titleToType = {};
+
+const manualOverrides = {
+  fullhouse: { id: 4313, media_type: "tv", type: 0 }, // U.S. sitcom
+  richinlove: { id: 656563, media_type: "movie", type: 1 }, // Ricos de Amor (2020)
+  weddingseason: { id: 818612, media_type: "movie", type: 1 },
+  theempress: { id: 131488, media_type: "tv", type: 0 },
+  bananasplit: { id: 493058, media_type: "movie", type: 1 },
+  heist: { id: 108139, media_type: "tv", type: 0 }, // Netflix docu-series
+  you: { id: 78191, media_type: "tv", type: 0 },
+  elite: { id: 76669, media_type: "tv", type: 0 },
+  love: { id: 65988, media_type: "tv", type: 0 }, // Netflix's "Love" (Judd Apatow)
+  dark: { id: 70523, media_type: "tv", type: 0 },
+  bruised: { id: 654974, media_type: "movie", type: 1 }, // Halle Berry Netflix original
+  curve: { id: 356094, media_type: "movie", type: 1 }, // horror with many name conflicts
+  ratched: { id: 87108, media_type: "tv", type: 0 },
+  arcane: { id: 94605, media_type: "tv", type: 0 },
+  fate: { id: 117303, media_type: "tv", type: 0 }, // Fate: The Winx Saga
+  candy: { id: 156002, media_type: "tv", type: 0 }, // often misrouted to 2006 horror
+  bloodredsky: { id: 567189, media_type: "movie", type: 1 },
+  bodies: { id: 205715, media_type: "tv", type: 0 }, // 2023 Netflix crime show
+  atypical: { id: 71738, media_type: "tv", type: 0 },
+  outerbanks: { id: 93484, media_type: "tv", type: 0 },
+  lupin: { id: 96677, media_type: "tv", type: 0 },
+  mindhunter: { id: 67744, media_type: "tv", type: 0 },
+  afterlife: { id: 86374, media_type: "tv", type: 0 }, // Ricky Gervais
+  theplatform: { id: 619592, media_type: "movie", type: 1 },
+};
 
 /*
  * ==============================
@@ -120,6 +151,45 @@ async function main() {
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
+async function test(normalizedTitle, originalTitle) {
+  let outputData = null;
+  let titleData = null;
+  let titleType = titleToType[normalizedTitle];
+  let outputRanking = {};
+
+  // 1 - Search Full Title Name
+  let fullTitle = normalizedToFull[normalizedTitle];
+  let fullTitleArr = fullTitle.split(" ");
+
+  while (titleData != null || fullTitleArr.length > 0) {
+    let searchTerm = fullTitleArr.join(" ");
+    outputData = await api.searchTVAndMovie(searchTerm);
+    outputData = outputData?.results;
+    titleData = outputData[0];
+    // console.log(titleData);
+    // console.log(fullTitleSearch);
+    fullTitleArr.pop();
+  }
+
+  if (titleData.media_type == "tv") {
+    titleType = 0;
+  } else {
+    titleType = 1;
+  }
+
+  if (titleType == 2) {
+    console.log("Unknown");
+  }
+
+  // if (titleData) {
+  //   outputRanking[1].data = titleData;
+  //   outputRanking[1].score = 1;
+  // }
+
+  // 2 -
+  return titleData;
+}
+
 async function getDataFromTMDB(normalizedTitle, originalTitle) {
   // Default TV Show
   let titleType = 0;
@@ -130,6 +200,9 @@ async function getDataFromTMDB(normalizedTitle, originalTitle) {
     let output = await api.searchTVAndMovie(originalTitle);
     output = output?.results;
 
+    // Try choosing the top 5 -> slice(0, 5)
+    // Then check which has Netflix as a Watch Provider
+    // That should be the winner
     titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
 
     titleType = 0;
@@ -165,6 +238,166 @@ async function getDataFromTMDB(normalizedTitle, originalTitle) {
   }
 
   return titleData;
+}
+
+function basicTitleSimilarity(titleA, titleB) {
+  const normalize = (str) =>
+    str
+      .toLowerCase()
+      .replace(/[^a-z0-9]/gi, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+  const setA = new Set(normalize(titleA));
+  const setB = new Set(normalize(titleB));
+  const intersection = [...setA].filter((word) => setB.has(word));
+  const union = new Set([...setA, ...setB]);
+  return intersection.length / union.size;
+}
+
+async function findBestMatchedTitle(normalizedTitle, originalTitle) {
+  const fullTitle = normalizedToFull[normalizedTitle];
+  const originalType = titleToType[normalizedTitle];
+  let titleType = originalType;
+  let bestCandidate = null;
+  let bestScore = -Infinity;
+
+  if (manualOverrides[normalizedTitle]) {
+    const override = manualOverrides[normalizedTitle];
+    titleToType[normalizedTitle] = override.type;
+    return override.media_type === "tv"
+      ? await api.getTVDetails(override.id)
+      : await api.getMovieDetails(override.id);
+  }
+
+  const titleChunks = fullTitle.split(" ");
+  let topCandidates = [];
+
+  // 1. Get Top Results from TMDb
+  while (titleChunks.length > 0) {
+    const searchTerm = titleChunks.join(" ");
+    const results = (await api.searchTVAndMovie(searchTerm))?.results || [];
+
+    topCandidates = results
+      .filter((r) => r.media_type === "tv" || r.media_type === "movie")
+      .slice(0, 10); // Grab top 10 to give Netflix priority
+
+    if (topCandidates.length > 0) break;
+    titleChunks.pop(); // Trim title and retry
+  }
+
+  // 2. Score Candidates
+  for (const result of topCandidates) {
+    const candidateTitle = result.title || result.name || "";
+    const mediaType = result.media_type;
+    const similarity = basicTitleSimilarity(candidateTitle, fullTitle);
+    const exactMatch = candidateTitle.toLowerCase() === fullTitle.toLowerCase();
+    const releaseYear =
+      parseInt(
+        (result.release_date || result.first_air_date || "")?.slice(0, 4),
+      ) || 0;
+
+    const wp =
+      mediaType === "tv"
+        ? await api.searchTVWatchProvider(result.id)
+        : await api.searchMovieWatchProvider(result.id);
+
+    const netflixAvailable = helper.isAvailableOnNetflix(wp);
+    const isOnMajor = helper.isOnMajorPlatform(wp);
+    const isEnglish = result.original_language === "en";
+    const isFromUS = result.origin_country?.includes("US");
+    const isFromUK = result.origin_country?.includes("GB");
+
+    // 🔒 Filters
+    if (!isEnglish && (!netflixAvailable || originalType !== 2)) continue;
+    if ((result.vote_count ?? 0) === 0 && !netflixAvailable) continue;
+    if (releaseYear < 1990 && !netflixAvailable) continue;
+    if (similarity < 0.2 && !exactMatch) continue;
+
+    // 🎯 Scoring
+    const score =
+      (exactMatch ? 300 : 0) +
+      similarity * 100 +
+      (netflixAvailable ? 500 : 0) +
+      (isOnMajor ? 200 : 0) +
+      (isEnglish ? 200 : -400) +
+      (isFromUS ? 150 : isFromUK ? 75 : 0) +
+      (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
+      (result.vote_average ?? 0) * 7 +
+      Math.min(result.vote_count ?? 0, 50) +
+      (result.popularity ?? 0) * 2;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = result;
+      titleType = mediaType === "movie" ? 1 : 0;
+    }
+  }
+
+  // 3. Fallback (TV or Movie Only)
+  if (!bestCandidate) {
+    const [tvOut, movieOut] = await Promise.all([
+      api.searchTVShow(originalTitle),
+      api.searchMovie(originalTitle),
+    ]);
+
+    const fallbackResults = [
+      ...(tvOut?.results?.slice(0, 1) || []).map((r) => ({
+        ...r,
+        media_type: "tv",
+      })),
+      ...(movieOut?.results?.slice(0, 1) || []).map((r) => ({
+        ...r,
+        media_type: "movie",
+      })),
+    ];
+
+    for (const result of fallbackResults) {
+      const candidateTitle = result.title || result.name || "";
+      const similarity = basicTitleSimilarity(candidateTitle, fullTitle);
+      const exactMatch =
+        candidateTitle.toLowerCase() === fullTitle.toLowerCase();
+      const releaseYear =
+        parseInt(
+          (result.release_date || result.first_air_date || "")?.slice(0, 4),
+        ) || 0;
+
+      const wp =
+        result.media_type === "tv"
+          ? await api.searchTVWatchProvider(result.id)
+          : await api.searchMovieWatchProvider(result.id);
+
+      const netflixAvailable = helper.isAvailableOnNetflix(wp);
+      const isOnMajor = helper.isOnMajorPlatform(wp);
+      const isEnglish = result.original_language === "en";
+      const isFromUS = result.origin_country?.includes("US");
+      const isFromUK = result.origin_country?.includes("GB");
+
+      if (!isEnglish && (!netflixAvailable || originalType !== 2)) continue;
+      if (releaseYear < 1990 && !netflixAvailable) continue;
+      if (similarity < 0.2 && !exactMatch) continue;
+
+      const score =
+        (exactMatch ? 300 : 0) +
+        similarity * 100 +
+        (netflixAvailable ? 500 : 0) +
+        (isOnMajor ? 200 : 0) +
+        (isEnglish ? 200 : -400) +
+        (isFromUS ? 150 : isFromUK ? 75 : 0) +
+        (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
+        (result.vote_average ?? 0) * 7 +
+        Math.min(result.vote_count ?? 0, 50) +
+        (result.popularity ?? 0) * 2;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidate = result;
+        titleType = result.media_type === "movie" ? 1 : 0;
+      }
+    }
+  }
+
+  titleToType[normalizedTitle] = titleType;
+  return bestCandidate;
 }
 
 /**
@@ -209,8 +442,24 @@ async function getData(normalizedTitle) {
   // 1 - Movie
   let detailsData = {};
 
-  console.log(normalizedTitle);
-  let match = await getDataFromTMDB(normalizedTitle, originalTitle);
+  // console.log(originalTitle);
+  // let match = await getDataFromTMDB(normalizedTitle, originalTitle);
+  // let match = await test(normalizedTitle, originalTitle);
+  let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
+
+  // if (normalizedTitle === "richinlove") {
+  //   console.log("Matched Rich in Love ➤", {
+  //     id: match?.id,
+  //     title: match?.title || match?.name,
+  //     release_date: match?.release_date,
+  //     vote_count: match?.vote_count,
+  //     vote_avg: match?.vote_average,
+  //     popularity: match?.popularity,
+  //   });
+  // }
+
+  // helper.print(`${normalizedTitle} MATCH`);
+  // console.log(match);
   let type = titleToType[normalizedTitle];
   // ====================
   // SECTION BEGIN
@@ -291,6 +540,7 @@ async function getData(normalizedTitle) {
       logNumShowsCompleted(result.number_of_episodes, result.normalized_title);
     }
 
+    console.log(normalizedTitle);
     return result;
   } else {
     // logMissedTitles(match, type);
@@ -325,16 +575,24 @@ function parseCSV() {
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (row) => {
-        if (helper.validString(row.Title) && helper.validString(row.Date)) {
-          const [originalTitle, type] = helper.getTitle(row.Title);
+        // ERROR CHECK
+        // Check if it even has the Title and Date rows ONLY
+        // Basically ensure that you are being given the correct CSV at all
+
+        if (helper.isValidString(row.Title) && helper.isValidString(row.Date)) {
+          const [originalTitle, fullTitle, type] = helper.getTitle(row.Title);
           const normalizedTitle = helper.normalizeTitle(originalTitle);
+          const date = helper.getDate(row.Date);
 
-          // In case there is an empty normalizedTitle
-          if (helper.validString(normalizedTitle)) {
-            const date = helper.getDate(row.Date);
-
+          // Check empty normalziedTitle and invalid Date Object
+          if (helper.isValidString(normalizedTitle) && !isNaN(date)) {
             normalizedToOriginal[normalizedTitle] = originalTitle;
+            normalizedToFull[normalizedTitle] = fullTitle;
             titleToType[normalizedTitle] = type;
+
+            // helper.print(
+            //   `${fullTitle} || ${originalTitle} || ${normalizedTitle}`,
+            // );
 
             if (!titleToDateFreq[normalizedTitle]) {
               titleToDateFreq[normalizedTitle] = {
@@ -665,13 +923,21 @@ function getMostBingedShow() {
   );
 
   const dates = userStats.mostBingedShow.dates_binged;
-  const startBinge = dates[0].toDateString();
-  const endBinge = dates[dates.length - 1].toDateString();
 
-  console.log(
-    `${title}: ${userStats.mostBingedShow.eps_binged} episodes watched back-to-back!`,
-  );
-  console.log(`You binged from ${startBinge} to ${endBinge}!`);
+  // helper.print(`${userStats.mostBingedShow}: ${dates}`);
+
+  if (dates) {
+    const startBinge = dates[0].toDateString();
+    const endBinge = dates[dates.length - 1].toDateString();
+
+    console.log(
+      `${title}: ${userStats.mostBingedShow.eps_binged} episodes watched back-to-back!`,
+    );
+
+    console.log(`You binged from ${startBinge} to ${endBinge}!`);
+  } else {
+    console.log("No dates available");
+  }
 }
 
 /*

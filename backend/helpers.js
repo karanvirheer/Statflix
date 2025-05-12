@@ -7,6 +7,27 @@
 /**
  * Helper Function
  *
+ * Removes all occurrences of title and its data from everything.
+ */
+export function removeFromExistence(
+  normalizedTitle,
+  normalizedToOriginal,
+  normalizedToFull,
+  titleToType,
+  titleToDateFreq,
+  userStatsUniqueTitlesWatched,
+) {
+  delete normalizedToOriginal[normalizedTitle];
+  delete normalizedToFull[normalizedTitle];
+  delete titleToType[normalizedTitle];
+  delete titleToDateFreq[normalizedTitle];
+  delete titleToDateFreq[normalizedTitle];
+  userStatsUniqueTitlesWatched -= 1;
+}
+
+/**
+ * Helper Function
+ *
  * Formatted print of an item.
  *
  * @param {<String>} item - Item to be printed
@@ -28,7 +49,7 @@ export function print(item) {
  */
 export function getEpisodeRunTime(detailsData) {
   if (detailsData.episode_run_time.length == 0) {
-    return detailsData.last_episode_to_air.runtime;
+    return detailsData.last_episode_to_air?.runtime || 0;
   } else {
     return detailsData.episode_run_time[0];
   }
@@ -143,7 +164,9 @@ export function getTitle(rawTitle) {
       break;
   }
 
-  return [rawTitle.split(":")[0].trim(), type];
+  let trimmedTitle = rawTitle.split(":")[0].trim();
+  parsedTitle = parsedTitle[0].replaceAll(":", "");
+  return [trimmedTitle, parsedTitle, type];
 }
 
 /**
@@ -191,7 +214,21 @@ export function isAvailableOnNetflix(watchProvidersData) {
   return false;
 }
 
-export function validString(str) {
+export function isOnMajorPlatform(watchProviders) {
+  const majorPlatforms = ["Netflix", "Hulu", "Max", "Disney Plus"];
+  const regions = ["US", "CA", "GB"];
+
+  for (const country of regions) {
+    const flatrate = watchProviders?.results?.[country]?.flatrate || [];
+    if (flatrate.some((p) => majorPlatforms.includes(p.provider_name))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function isValidString(str) {
   if (typeof str === "string" && str.trim().length > 0) {
     return true;
   }
