@@ -5,6 +5,7 @@ import csv from "csv-parser";
 import dotenv from "dotenv";
 import * as api from "./tmdb.js";
 import * as helper from "./helpers.js";
+import * as db from "./db.js";
 dotenv.config();
 
 /*
@@ -22,9 +23,6 @@ const filePath = "./big.csv";
 // const filePath = "./tests/Test03_ScoringTitles.csv";
 // const filePath = "./tests/Test04_1000_Titles_TVShowsOnly.csv";
 // const filePath = "./tests/Test05_MultipleUnique.csv";
-
-// Titles Cache
-const cache = {};
 
 // User Statistics Cache
 const userStats = {
@@ -51,7 +49,7 @@ const userStats = {
   // dict
   // {
   //  title: {
-  //    type: "",
+  //    mediaType: "",
   //    minutes: 0,
   //  },
   //  ...
@@ -61,7 +59,7 @@ const userStats = {
   // dict
   // {
   //  title: {
-  //    type: "",
+  //    mediaType: "",
   //    minutes: 0,
   //  },
   //  ...
@@ -108,7 +106,7 @@ const userStats = {
 let titleToDateFreq = {};
 let normalizedToOriginal = {};
 let normalizedToFull = {};
-let titleToType = {};
+let titletoMediaType = {};
 
 const manualOverrides = {
   fullhouse: { id: 4313, media_type: "tv", type: 0 }, // U.S. sitcom
@@ -147,97 +145,10 @@ main();
 
 async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  await parseCSV();
+  await db.createTmdbTable().catch(console.error);
+  await parseKaggleDatasets();
+  // await parseCSV();
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
-}
-
-async function test(normalizedTitle, originalTitle) {
-  let outputData = null;
-  let titleData = null;
-  let titleType = titleToType[normalizedTitle];
-  let outputRanking = {};
-
-  // 1 - Search Full Title Name
-  let fullTitle = normalizedToFull[normalizedTitle];
-  let fullTitleArr = fullTitle.split(" ");
-
-  while (titleData != null || fullTitleArr.length > 0) {
-    let searchTerm = fullTitleArr.join(" ");
-    outputData = await api.searchTVAndMovie(searchTerm);
-    outputData = outputData?.results;
-    titleData = outputData[0];
-    // console.log(titleData);
-    // console.log(fullTitleSearch);
-    fullTitleArr.pop();
-  }
-
-  if (titleData.media_type == "tv") {
-    titleType = 0;
-  } else {
-    titleType = 1;
-  }
-
-  if (titleType == 2) {
-    console.log("Unknown");
-  }
-
-  // if (titleData) {
-  //   outputRanking[1].data = titleData;
-  //   outputRanking[1].score = 1;
-  // }
-
-  // 2 -
-  return titleData;
-}
-
-async function getDataFromTMDB(normalizedTitle, originalTitle) {
-  // Default TV Show
-  let titleType = 0;
-  let titleData = null;
-
-  // Title is TV Show or Movie -> Use API to figure out
-  if (titleToType[normalizedTitle] == 2) {
-    let output = await api.searchTVAndMovie(originalTitle);
-    output = output?.results;
-
-    // Try choosing the top 5 -> slice(0, 5)
-    // Then check which has Netflix as a Watch Provider
-    // That should be the winner
-    titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
-
-    titleType = 0;
-
-    // Fallback to TVShow or Movie Search APIs
-    // Use the one with the highest vote_count
-    if (titleData.media_type === "person") {
-      const showOutput = await api.searchTVShow(originalTitle);
-      const showData = showOutput?.results?.[0];
-
-      const movieOutput = await api.searchMovie(originalTitle);
-      const movieData = movieOutput?.results?.[0];
-
-      if (showData?.vote_count >= movieData?.vote_count) {
-        titleData = showData;
-        titleType = 0;
-      } else {
-        titleData = movieData;
-        titleType = 1;
-      }
-    } else if (titleData.media_type === "movie") {
-      titleType = 1;
-    }
-
-    titleToType[normalizedTitle] = titleType;
-
-    // Title is a TV Show
-  } else if (titleToType[normalizedTitle] == 0) {
-    let output = await api.searchTVShow(originalTitle);
-    output = output?.results;
-
-    titleData = output.sort((a, b) => b.vote_count - a.vote_count)[0];
-  }
-
-  return titleData;
 }
 
 function basicTitleSimilarity(titleA, titleB) {
@@ -256,14 +167,14 @@ function basicTitleSimilarity(titleA, titleB) {
 
 async function findBestMatchedTitle(normalizedTitle, originalTitle) {
   const fullTitle = normalizedToFull[normalizedTitle];
-  const originalType = titleToType[normalizedTitle];
+  const originalType = titletoMediaType[normalizedTitle];
   let titleType = originalType;
   let bestCandidate = null;
   let bestScore = -Infinity;
 
   if (manualOverrides[normalizedTitle]) {
     const override = manualOverrides[normalizedTitle];
-    titleToType[normalizedTitle] = override.type;
+    titletoMediaType[normalizedTitle] = override.type;
     return override.media_type === "tv"
       ? await api.getTVDetails(override.id)
       : await api.getMovieDetails(override.id);
@@ -307,13 +218,13 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
     const isFromUS = result.origin_country?.includes("US");
     const isFromUK = result.origin_country?.includes("GB");
 
-    // 🔒 Filters
-    if (!isEnglish && (!netflixAvailable || originalType !== 2)) continue;
+    // Filters
+    if (!isEnglish && !netflixAvailable) continue;
     if ((result.vote_count ?? 0) === 0 && !netflixAvailable) continue;
     if (releaseYear < 1990 && !netflixAvailable) continue;
-    if (similarity < 0.2 && !exactMatch) continue;
+    if (similarity < 0.1 && !exactMatch) continue;
 
-    // 🎯 Scoring
+    // Scoring
     const score =
       (exactMatch ? 300 : 0) +
       similarity * 100 +
@@ -372,9 +283,9 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
       const isFromUS = result.origin_country?.includes("US");
       const isFromUK = result.origin_country?.includes("GB");
 
-      if (!isEnglish && (!netflixAvailable || originalType !== 2)) continue;
+      if (!isEnglish && !netflixAvailable) continue;
       if (releaseYear < 1990 && !netflixAvailable) continue;
-      if (similarity < 0.2 && !exactMatch) continue;
+      if (similarity < 0.1 && !exactMatch) continue;
 
       const score =
         (exactMatch ? 300 : 0) +
@@ -396,7 +307,7 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
     }
   }
 
-  titleToType[normalizedTitle] = titleType;
+  titletoMediaType[normalizedTitle] = titleType;
   return bestCandidate;
 }
 
@@ -407,26 +318,7 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
  * @returns {Promise<dict>} Information related to the title
  */
 async function getData(normalizedTitle) {
-  // ====================
-  // SECTION BEGIN
-  //
-  // POSTGRESQL FUNCTION CALL HERE
-  // Check if normalizedTitle is in the DB
-  //    Return
-  // Otherwise proceed ahead
-  //
-  // TEMPORARY CACHE UNTIL DB IS SETUP
-  // ====================
-
-  // Check cache first
-  if (cache[normalizedTitle]) {
-    // console.log(`✅ Cache hit: ${normalizedTitle}`);
-    return cache[normalizedTitle]; // Return cached result
-  }
-
-  // ====================
-  // SECTION END
-  // ====================
+  let result = {};
 
   const originalTitle = helper.getOriginalTitle(
     normalizedToOriginal,
@@ -438,123 +330,89 @@ async function getData(normalizedTitle) {
     normalizedTitle,
   );
 
-  // 0 - TV Show [ Default ]
-  // 1 - Movie
-  let detailsData = {};
+  result = await db.getCachedResult(normalizedTitle);
+  if (result) {
+    helper.print(`CACHE HIT: ${normalizedTitle}`);
+  } else {
+    let detailsData = {};
+    helper.print(`${normalizedTitle}`);
+    let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
+    if (match) {
+      if (match.media_type == "tv") {
+        detailsData = await api.getTVDetails(match.id);
+        result = {
+          normalized_title: normalizedTitle || null,
+          original_title: originalTitle || null,
+          tmdb_id: detailsData.id || null,
+          mediaType: 0,
+          genres: detailsData.genres || null,
+          runtime: null,
+          number_of_episodes: detailsData.number_of_episodes || null,
+          episode_run_time: await helper.getEpisodeRunTime(detailsData),
+          release_date: null,
+          first_air_date: detailsData.first_air_date || null,
+          poster_path: detailsData.poster_path || null,
+        };
 
-  // console.log(originalTitle);
-  // let match = await getDataFromTMDB(normalizedTitle, originalTitle);
-  // let match = await test(normalizedTitle, originalTitle);
-  let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
-
-  // if (normalizedTitle === "richinlove") {
-  //   console.log("Matched Rich in Love ➤", {
-  //     id: match?.id,
-  //     title: match?.title || match?.name,
-  //     release_date: match?.release_date,
-  //     vote_count: match?.vote_count,
-  //     vote_avg: match?.vote_average,
-  //     popularity: match?.popularity,
-  //   });
-  // }
-
-  // helper.print(`${normalizedTitle} MATCH`);
-  // console.log(match);
-  let type = titleToType[normalizedTitle];
-  // ====================
-  // SECTION BEGIN
-  //
-  // DB Call: Update the POSTGRESQL TABLE with new information at the end
-  // Change result = {} based on POSTGRESQL TABLE
-  // ====================
-
-  let timeWatched = 0;
-  let result = {};
-  if (match) {
-    if (type == 0) {
-      detailsData = await api.getTVDetails(match.id);
-      result = {
-        normalized_title: normalizedTitle || null,
-        original_title: originalTitle || null,
-        tmdb_id: detailsData.id || null,
-        type: type || null,
-        genres: detailsData.genres || null,
-        runtime: null,
-        number_of_episodes: detailsData.number_of_episodes || null,
-        episode_run_time: await helper.getEpisodeRunTime(detailsData),
-        release_date: null,
-        first_air_date: detailsData.first_air_date || null,
-        poster_path: detailsData.poster_path || null,
-      };
-
-      timeWatched = result.episode_run_time * titleFrequency;
-
-      // Movie
-    } else {
-      detailsData = await api.getMovieDetails(match.id);
-      result = {
-        normalized_title: normalizedTitle || null,
-        original_title: originalTitle || null,
-        tmdb_id: detailsData.id || null,
-        type: type || null,
-        genres: detailsData.genres || null,
-        runtime: detailsData.runtime || null,
-        number_of_episodes: null,
-        episode_run_time: null,
-        release_date: detailsData.release_date || null,
-        first_air_date: null,
-        poster_path: detailsData.poster_path || null,
-      };
-
-      const runtime = result.runtime || 0;
-      timeWatched = runtime * titleFrequency;
+        // Movie
+      } else {
+        detailsData = await api.getMovieDetails(match.id);
+        result = {
+          normalized_title: normalizedTitle || null,
+          original_title: originalTitle || null,
+          tmdb_id: detailsData.id || null,
+          mediaType: 1,
+          genres: detailsData.genres || null,
+          runtime: detailsData.runtime || null,
+          number_of_episodes: null,
+          episode_run_time: null,
+          release_date: detailsData.release_date || null,
+          first_air_date: null,
+          poster_path: detailsData.poster_path || null,
+        };
+      }
+      await db.cacheResult(result);
     }
+    await new Promise((r) => setTimeout(r, 300));
+  }
 
-    // =========================
-    // POSTGRESQL CALL HERE
-    // =========================
-
-    // Save result to cache
-    cache[normalizedTitle] = result;
-
-    // =========================
-    // POSTGRESQL CALL HERE
-    // =========================
+  if (result) {
+    const runtime = result?.runtime || result?.episode_run_time || 0;
+    let timeWatched = runtime * titleFrequency;
+    let mediaType = titletoMediaType[normalizedTitle];
 
     // =========================
     // STATISTICS FUNCTION CALLS
     // =========================
-    logWatchTime(normalizedTitle, type, timeWatched);
-    logUniqueShowsAndMovies(type);
-    logTopGenres(result.genres);
+    logWatchTime(normalizedTitle, mediaType, timeWatched);
+    logUniqueShowsAndMovies(mediaType);
+
+    if (result.genres !== null || result.genres?.length > 0) {
+      logTopGenres(result.genres);
+    }
     logMostBingedShow();
     logTopWatchedTitles();
     logMostWatchedTitle();
     logOldestWatchedShowAndMovie(
-      type,
+      mediaType,
       result.release_date || result.first_air_date,
       result.normalized_title,
     );
 
-    if (type == 0) {
+    if (mediaType == 0) {
       logNumShowsCompleted(result.number_of_episodes, result.normalized_title);
     }
-
-    console.log(normalizedTitle);
-    return result;
-  } else {
-    // logMissedTitles(match, type);
-    // }
   }
+
+  // console.log(normalizedTitle);
+  // logMissedTitles(match, mediaType);
+  // }
 
   // Optional delay to avoid hammering the API in case of no result
   // Pause execution until the Promise is resolved
   // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
-  await new Promise((r) => setTimeout(r, 300));
 
-  // Still cache null to avoid repeated failed lookups
-  cache[normalizedTitle] = null;
-  return null;
+  return result;
 }
 
 /**
@@ -580,7 +438,9 @@ function parseCSV() {
         // Basically ensure that you are being given the correct CSV at all
 
         if (helper.isValidString(row.Title) && helper.isValidString(row.Date)) {
-          const [originalTitle, fullTitle, type] = helper.getTitle(row.Title);
+          const [originalTitle, fullTitle, mediaType] = helper.getTitle(
+            row.Title,
+          );
           const normalizedTitle = helper.normalizeTitle(originalTitle);
           const date = helper.getDate(row.Date);
 
@@ -588,7 +448,7 @@ function parseCSV() {
           if (helper.isValidString(normalizedTitle) && !isNaN(date)) {
             normalizedToOriginal[normalizedTitle] = originalTitle;
             normalizedToFull[normalizedTitle] = fullTitle;
-            titleToType[normalizedTitle] = type;
+            titletoMediaType[normalizedTitle] = mediaType;
 
             // helper.print(
             //   `${fullTitle} || ${originalTitle} || ${normalizedTitle}`,
@@ -622,6 +482,66 @@ function parseCSV() {
           printUserStats();
 
           resolve({ titleList, dateList });
+        } catch (error) {
+          reject(error);
+        }
+      });
+  });
+}
+
+async function parseKaggleDatasets() {
+  const idList = [];
+  const titleList = [];
+
+  let kaggleMovieDict = {};
+
+  const kaggleMovieFilePath = "./kaggle/movies_dataset.csv";
+
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(kaggleMovieFilePath)
+      .pipe(csv())
+      .on("data", (row) => {
+        const showID = row.show_id;
+        const title = row.title;
+
+        if (helper.isValidString(showID) && helper.isValidString(title)) {
+          kaggleMovieDict[showID] = {
+            normalizedTitle: helper.normalizeTitle(title),
+            originalTitle: title,
+          };
+
+          idList.push(showID);
+          titleList.push(title);
+        }
+      })
+      .on("end", async () => {
+        try {
+          for (const showID of Object.keys(kaggleMovieDict)) {
+            const csvData = kaggleMovieDict[showID];
+
+            let detailsData = await api.getMovieDetails(showID);
+            let result = {
+              normalized_title: csvData.normalizedTitle || null,
+              original_title: csvData.originalTitle || null,
+              tmdb_id: showID || null,
+              mediaType: 1,
+              genres: detailsData.genres || null,
+              runtime: detailsData.runtime || null,
+              number_of_episodes: null,
+              episode_run_time: null,
+              release_date: detailsData.release_date || null,
+              first_air_date: null,
+              poster_path: detailsData.poster_path || null,
+            };
+            await db.cacheResult(result);
+
+            helper.print(`LOGGED: ${csvData.normalizedTitle}`);
+            await new Promise((r) => setTimeout(r, 300));
+          }
+
+          console.log("✅ Kaggle Move Dataset processing done.");
+
+          resolve({ idList, titleList });
         } catch (error) {
           reject(error);
         }
@@ -726,8 +646,8 @@ function getTopGenres() {
  * ------------------------------
  */
 
-function logUniqueShowsAndMovies(type) {
-  if (type == 0) {
+function logUniqueShowsAndMovies(mediaType) {
+  if (mediaType == 0) {
     userStats.numUniqueTitlesWatched.tvShows += 1;
   } else {
     userStats.numUniqueTitlesWatched.movies += 1;
@@ -758,17 +678,17 @@ function getUniqueTitlesWatched() {
  *
  * @function
  * @param {string} normalizedTitle - Normalized title used as the key
- * @param {int} type - TV Show (1) or Movie (0)
+ * @param {int} mediaType - TV Show (1) or Movie (0)
  * @param {int} timeWatched - Number of minutes watched
  */
-function logWatchTime(normalizedTitle, type, timeWatched) {
+function logWatchTime(normalizedTitle, mediaType, timeWatched) {
   userStats.totalWatchTime += timeWatched;
 
   if (userStats.watchTimeByTitle[normalizedTitle]) {
     userStats.watchTimeByTitle[normalizedTitle].minutes += timeWatched;
   } else {
     userStats.watchTimeByTitle[normalizedTitle] = {
-      type: type,
+      mediaType: mediaType,
       minutes: timeWatched,
     };
   }
@@ -970,10 +890,10 @@ function getNumShowsCompleted() {
  * ------------------------------
  */
 
-function logOldestWatchedShowAndMovie(type, release_date, title) {
+function logOldestWatchedShowAndMovie(mediaType, release_date, title) {
   let date = new Date(release_date);
   // TV Show
-  if (type == 0) {
+  if (mediaType == 0) {
     if (userStats.oldestWatchedShow.title == "") {
       userStats.oldestWatchedShow = {
         title: title,
@@ -1022,10 +942,10 @@ function getOldestWatchedMovie() {
  *     MISSING TITLES
  * ------------------------------
  */
-function logMissedTitles(match, type) {
+function logMissedTitles(match, mediaType) {
   userStats.missedTitles.count += 1;
 
-  if (type == 0) {
+  if (mediaType == 0) {
     userStats.missedTitles.titlesArr.push(match.original_name);
   } else {
     userStats.missedTitles.titlesArr.push(match.original_title);
