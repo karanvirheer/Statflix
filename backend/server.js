@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import * as api from "./tmdb.js";
 import * as helper from "./helpers.js";
 import * as db from "./db.js";
+import * as stats from "./logging.js";
+
 dotenv.config();
 
 /*
@@ -104,8 +106,6 @@ const userStats = {
 };
 
 let titleToDateFreq = {};
-let normalizedToOriginal = {};
-let normalizedToFull = {};
 let titletoMediaType = {};
 
 const manualOverrides = {
@@ -145,9 +145,10 @@ main();
 
 async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  await db.createTmdbTable().catch(console.error);
-  await parseKaggleDatasets();
-  // await parseCSV();
+  // await db.createTmdbTable().catch(console.error);
+  // await parseKaggleShowDataset();
+  // await parseKaggleMovieDataset();
+  await parseCSV();
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
@@ -165,9 +166,7 @@ function basicTitleSimilarity(titleA, titleB) {
   return intersection.length / union.size;
 }
 
-async function findBestMatchedTitle(normalizedTitle, originalTitle) {
-  const fullTitle = normalizedToFull[normalizedTitle];
-  const originalType = titletoMediaType[normalizedTitle];
+async function findBestMatchedTitle(normalizedTitle) {
   let titleType = originalType;
   let bestCandidate = null;
   let bestScore = -Infinity;
@@ -193,6 +192,7 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
       .slice(0, 10); // Grab top 10 to give Netflix priority
 
     if (topCandidates.length > 0) break;
+    title;
     titleChunks.pop(); // Trim title and retry
   }
 
@@ -264,7 +264,7 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
 
     for (const result of fallbackResults) {
       const candidateTitle = result.title || result.name || "";
-      const similarity = basicTitleSimilarity(candidateTitle, fullTitle);
+      const similarity = basicTitleSimilarity(candidateTitle, fullTittitlele);
       const exactMatch =
         candidateTitle.toLowerCase() === fullTitle.toLowerCase();
       const releaseYear =
@@ -292,7 +292,7 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
         similarity * 100 +
         (netflixAvailable ? 500 : 0) +
         (isOnMajor ? 200 : 0) +
-        (isEnglish ? 200 : -400) +
+        title(isEnglish ? 200 : -400) +
         (isFromUS ? 150 : isFromUK ? 75 : 0) +
         (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
         (result.vote_average ?? 0) * 7 +
@@ -320,99 +320,118 @@ async function findBestMatchedTitle(normalizedTitle, originalTitle) {
 async function getData(normalizedTitle) {
   let result = {};
 
-  const originalTitle = helper.getOriginalTitle(
-    normalizedToOriginal,
-    normalizedTitle,
-  );
-
-  const titleFrequency = helper.getTitleWatchFrequency(
-    titleToDateFreq,
-    normalizedTitle,
-  );
-
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
     helper.print(`CACHE HIT: ${normalizedTitle}`);
   } else {
-    let detailsData = {};
-    helper.print(`${normalizedTitle}`);
-    let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
-    if (match) {
-      if (match.media_type == "tv") {
-        detailsData = await api.getTVDetails(match.id);
-        result = {
-          normalized_title: normalizedTitle || null,
-          original_title: originalTitle || null,
-          tmdb_id: detailsData.id || null,
-          mediaType: 0,
-          genres: detailsData.genres || null,
-          runtime: null,
-          number_of_episodes: detailsData.number_of_episodes || null,
-          episode_run_time: await helper.getEpisodeRunTime(detailsData),
-          release_date: null,
-          first_air_date: detailsData.first_air_date || null,
-          poster_path: detailsData.poster_path || null,
-        };
+    // Trim the title down to the next ":" and retry checking the Database
+    let titleWordList = normalizedTitle.split(":");
+    let trimmedTitle = "";
+    while (titleWordList.length > 0) {
+      trimmedTitle = titleWordList.join(" ");
+      result = await db.getCachedResult(trimmedTitle);
 
-        // Movie
-      } else {
-        detailsData = await api.getMovieDetails(match.id);
-        result = {
-          normalized_title: normalizedTitle || null,
-          original_title: originalTitle || null,
-          tmdb_id: detailsData.id || null,
-          mediaType: 1,
-          genres: detailsData.genres || null,
-          runtime: detailsData.runtime || null,
-          number_of_episodes: null,
-          episode_run_time: null,
-          release_date: detailsData.release_date || null,
-          first_air_date: null,
-          poster_path: detailsData.poster_path || null,
-        };
+      if (!result) {
+        trimmedTitle = titleWordList.join(": ");
+        result = await db.getCachedResult(trimmedTitle);
       }
-      await db.cacheResult(result);
+
+      if (result) {
+        break;
+      } else {
+        titleWordList.pop();
+      }
     }
-    await new Promise((r) => setTimeout(r, 300));
+
+    if (result) {
+      helper.print(`CACHE HIT: ${trimmedTitle}`);
+    } else {
+      userStats.numUniqueTitlesWatched.total -= 1;
+      stats.logMissedTitles(userStats, normalizedTitle);
+    }
+
+    // let detailsData = {};
+    // helper.print(`${normalizedTitle}`);
+    // let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
+    // if (match) {
+    //   if (match.media_type == "tv") {
+    //     detailsData = await api.getTVDetails(match.id);
+    //     result = {
+    //       normalized_title: normalizedTitle || null,
+    //       original_title: originalTitle || null,
+    //       tmdb_id: detailsData.id || null,
+    //       mediaType: 0,
+    //       genres: detailsData.genres || null,
+    //       runtime: null,
+    //       number_of_episodes: detailsData.number_of_episodes || null,
+    //       episode_run_time: await helper.getEpisodeRunTime(detailsData),
+    //       release_date: null,
+    //       first_air_date: detailsData.first_air_date || null,
+    //       poster_path: detailsData.poster_path || null,
+    //     };
+    //
+    //     // Movie
+    //   } else {
+    //     detailsData = await api.getMovieDetails(match.id);
+    //     result = {
+    //       normalized_title: normalizedTitle || null,
+    //       original_title: originalTitle || null,
+    //       tmdb_id: detailsData.id || null,
+    //       mediaType: 1,
+    //       genres: detailsData.genres || null,
+    //       runtime: detailsData.runtime || null,
+    //       number_of_episodes: null,
+    //       episode_run_time: null,
+    //       release_date: detailsData.release_date || null,
+    //       first_air_date: null,
+    //       poster_path: detailsData.poster_path || null,
+    //     };
+    //   }
+    //   await db.cacheResult(result);
+    // }
+    // await new Promise((r) => setTimeout(r, 300));
   }
-
-  if (result) {
-    const runtime = result?.runtime || result?.episode_run_time || 0;
-    let timeWatched = runtime * titleFrequency;
-    let mediaType = titletoMediaType[normalizedTitle];
-
-    // =========================
-    // STATISTICS FUNCTION CALLS
-    // =========================
-    logWatchTime(normalizedTitle, mediaType, timeWatched);
-    logUniqueShowsAndMovies(mediaType);
-
-    if (result.genres !== null || result.genres?.length > 0) {
-      logTopGenres(result.genres);
-    }
-    logMostBingedShow();
-    logTopWatchedTitles();
-    logMostWatchedTitle();
-    logOldestWatchedShowAndMovie(
-      mediaType,
-      result.release_date || result.first_air_date,
-      result.normalized_title,
-    );
-
-    if (mediaType == 0) {
-      logNumShowsCompleted(result.number_of_episodes, result.normalized_title);
-    }
-  }
-
-  // console.log(normalizedTitle);
-  // logMissedTitles(match, mediaType);
-  // }
-
   // Optional delay to avoid hammering the API in case of no result
   // Pause execution until the Promise is resolved
   // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
 
   return result;
+}
+
+function logUserStats(result, normalizedTitle) {
+  const titleFrequency = helper.getTitleWatchFrequency(
+    titleToDateFreq,
+    normalizedTitle,
+  );
+  const runtime = result?.runtime || result?.episode_run_time || 45;
+  const timeWatched = runtime * titleFrequency;
+  const mediaType = result.media_type;
+
+  if (result.genres !== null || result.genres?.length > 0) {
+    stats.logTopGenres(userStats, result.genres);
+  }
+
+  stats.logUniqueShowsAndMovies(userStats, mediaType);
+  stats.logWatchTime(userStats, normalizedTitle, mediaType, timeWatched);
+  stats.logTopWatchedTitles(userStats);
+  stats.logMostWatchedTitle(userStats);
+  stats.logMostBingedShow(userStats, titleToDateFreq);
+
+  if (mediaType == 0) {
+    stats.logNumShowsCompleted(
+      titleToDateFreq,
+      userStats,
+      result.number_of_episodes,
+      normalizedTitle,
+    );
+  }
+
+  stats.logOldestWatchedShowAndMovie(
+    userStats,
+    mediaType,
+    result.release_date || result.first_air_date,
+    result.normalized_title,
+  );
 }
 
 /**
@@ -432,54 +451,65 @@ function parseCSV() {
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
-      .on("data", (row) => {
-        // ERROR CHECK
-        // Check if it even has the Title and Date rows ONLY
-        // Basically ensure that you are being given the correct CSV at all
+      .on("headers", (headers) => {
+        // Normalize and check the headers
+        const normalizedHeaders = headers.map((h) => h.trim().toLowerCase());
 
-        if (helper.isValidString(row.Title) && helper.isValidString(row.Date)) {
-          const [originalTitle, fullTitle, mediaType] = helper.getTitle(
-            row.Title,
+        const isValid =
+          normalizedHeaders.length === 2 &&
+          normalizedHeaders.includes("title") &&
+          normalizedHeaders.includes("date");
+
+        if (!isValid) {
+          console.error(
+            "CSV is invalid. It must contain only 'Title' and 'Date' columns.",
           );
-          const normalizedTitle = helper.normalizeTitle(originalTitle);
+          process.exit(1); // Stop execution if format is wrong
+        } else {
+          console.log("CSV is valid.");
+        }
+      })
+      .on("data", (row) => {
+        // Check for empty cells
+        if (helper.isValidString(row.Title) && helper.isValidString(row.Date)) {
+          const title = helper.getBaseTitle(row.Title);
           const date = helper.getDate(row.Date);
 
-          // Check empty normalziedTitle and invalid Date Object
-          if (helper.isValidString(normalizedTitle) && !isNaN(date)) {
-            normalizedToOriginal[normalizedTitle] = originalTitle;
-            normalizedToFull[normalizedTitle] = fullTitle;
-            titletoMediaType[normalizedTitle] = mediaType;
+          // Check if Date was properly formatted
+          if (!isNaN(date)) {
+            // titletoMediaType[normalizedTitle] = mediaType;
 
-            // helper.print(
-            //   `${fullTitle} || ${originalTitle} || ${normalizedTitle}`,
-            // );
-
-            if (!titleToDateFreq[normalizedTitle]) {
-              titleToDateFreq[normalizedTitle] = {
+            if (!titleToDateFreq[title]) {
+              titleToDateFreq[title] = {
                 datesWatched: [],
                 titleFrequency: 0,
               };
-              logUniqueTitlesWatched();
+              stats.logUniqueTitlesWatched(userStats);
             }
-            titleToDateFreq[normalizedTitle].titleFrequency += 1;
-            titleToDateFreq[normalizedTitle].datesWatched.push(date);
+            titleToDateFreq[title].titleFrequency += 1;
+            titleToDateFreq[title].datesWatched.push(date);
 
-            titleList.push(originalTitle);
+            titleList.push(title);
             dateList.push(date);
           }
         }
       })
       .on("end", async () => {
         try {
-          for (const normalizedTitle of Object.keys(titleToDateFreq)) {
-            await getData(normalizedTitle);
+          for (const title of Object.keys(titleToDateFreq)) {
+            let result = await getData(title);
+
+            if (result) {
+              logUserStats(result, title);
+            }
           }
+
           console.log("✅ CSV processing done.");
 
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
-          printUserStats();
+          stats.printUserStats(userStats);
 
           resolve({ titleList, dateList });
         } catch (error) {
@@ -489,7 +519,7 @@ function parseCSV() {
   });
 }
 
-async function parseKaggleDatasets() {
+async function parseKaggleMovieDataset() {
   const idList = [];
   const titleList = [];
 
@@ -506,7 +536,7 @@ async function parseKaggleDatasets() {
 
         if (helper.isValidString(showID) && helper.isValidString(title)) {
           kaggleMovieDict[showID] = {
-            normalizedTitle: helper.normalizeTitle(title),
+            normalizedTitle: helper.getBaseTitle(title),
             originalTitle: title,
           };
 
@@ -518,13 +548,12 @@ async function parseKaggleDatasets() {
         try {
           for (const showID of Object.keys(kaggleMovieDict)) {
             const csvData = kaggleMovieDict[showID];
-
             let detailsData = await api.getMovieDetails(showID);
             let result = {
               normalized_title: csvData.normalizedTitle || null,
               original_title: csvData.originalTitle || null,
               tmdb_id: showID || null,
-              mediaType: 1,
+              media_type: 1,
               genres: detailsData.genres || null,
               runtime: detailsData.runtime || null,
               number_of_episodes: null,
@@ -539,7 +568,7 @@ async function parseKaggleDatasets() {
             await new Promise((r) => setTimeout(r, 300));
           }
 
-          console.log("✅ Kaggle Move Dataset processing done.");
+          console.log("✅ Kaggle Movie Dataset processing done.");
 
           resolve({ idList, titleList });
         } catch (error) {
@@ -549,415 +578,62 @@ async function parseKaggleDatasets() {
   });
 }
 
-/*
- * ==============================
- *        STATISTICS FUNCTIONS
- * ==============================
- */
+async function parseKaggleShowDataset() {
+  const idList = [];
+  const titleList = [];
 
-/**
- * Prints out all the User Statistics to the console.
- */
-function printUserStats() {
-  if (Object.keys(userStats.genres).length > 0) {
-    helper.print("TOP GENRES");
-    getTopGenres();
-  }
+  let kaggleShowDict = {};
 
-  if (userStats.numUniqueTitlesWatched.total > 0) {
-    helper.print("UNIQUE TITLES WATCHED");
-    getUniqueTitlesWatched();
-  }
+  const kaggleShowFilePath = "./kaggle/shows_dataset.csv";
 
-  if (userStats.totalWatchTime > 0) {
-    helper.print("TOTAL WATCH TIME");
-    getTotalWatchTime();
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(kaggleShowFilePath)
+      .pipe(csv())
+      .on("data", (row) => {
+        const showID = row.show_id;
+        const title = row.title;
 
-    helper.print("TOP 5 TITLES BY WATCH TIME");
-    getTopWatchedTitles();
+        if (helper.isValidString(showID) && helper.isValidString(title)) {
+          kaggleShowDict[showID] = {
+            normalizedTitle: helper.getBaseTitle(title),
+            originalTitle: title,
+          };
 
-    helper.print("YOU SPENT THE MOST TIME WATCHING");
-    getMostWatchedTitle();
-  }
+          idList.push(showID);
+          titleList.push(title);
+        }
+      })
+      .on("end", async () => {
+        try {
+          for (const showID of Object.keys(kaggleShowDict)) {
+            const csvData = kaggleShowDict[showID];
+            let detailsData = await api.getTVDetails(showID);
+            let result = {
+              normalized_title: csvData.normalizedTitle || null,
+              original_title: csvData.originalTitle || null,
+              tmdb_id: showID || null,
+              media_type: 0,
+              genres: detailsData.genres || null,
+              runtime: null,
+              number_of_episodes: detailsData.number_of_episodes || null,
+              episode_run_time: await helper.getEpisodeRunTime(detailsData),
+              release_date: null,
+              first_air_date: detailsData.first_air_date || null,
+              poster_path: detailsData.poster_path || null,
+            };
+            await db.cacheResult(result);
+            helper.print(`LOGGED: ${csvData.normalizedTitle}`);
+            await new Promise((r) => setTimeout(r, 300));
+          }
 
-  if (userStats.mostBingedShow.eps_binged > 0) {
-    helper.print("MOST BINGED SHOW");
-    getMostBingedShow();
-  }
+          console.log("✅ Kaggle TV Show Dataset processing done.");
 
-  if (userStats.showsCompleted.length > 1) {
-    helper.print("NUMBER OF SHOWS COMPLETED");
-    getNumShowsCompleted();
-  }
-
-  if (userStats.oldestWatchedShow.title != "") {
-    helper.print("OLDEST WATCHED SHOW");
-    getOldestWatchedShow();
-  }
-
-  if (userStats.oldestWatchedMovie.title != "") {
-    helper.print("OLDEST WATCHED MOVIE");
-    getOldestWatchedMovie();
-  }
-
-  if (userStats.missedTitles.count > 0) {
-    helper.print("MISSED TITLES");
-    getMissedTitles();
-  }
-}
-
-/*
- * ------------------------------
- *         TOP GENRES
- * ------------------------------
- */
-
-/**
- * Updates userStats["genres"] dict to keep track of the occurrences of each genre.
- *
- * @param {string} genreArray - Genres of current title
- */
-function logTopGenres(genreArray) {
-  for (const genre of genreArray) {
-    if (genre.name in userStats.genres) {
-      userStats.genres[genre.name] += 1;
-    } else {
-      userStats.genres[genre.name] = 1;
-    }
-  }
-}
-
-/**
- * Prints the Top 5 Genres based on the userStats
- */
-function getTopGenres() {
-  userStats.topGenres = Object.entries(userStats.genres)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-
-  for (const [key, value] of userStats.topGenres) {
-    console.log(`${key}: ${value}`);
-  }
-}
-
-/*
- * ------------------------------
- *    UNIQUE TITLES WATCHED
- * ------------------------------
- */
-
-function logUniqueShowsAndMovies(mediaType) {
-  if (mediaType == 0) {
-    userStats.numUniqueTitlesWatched.tvShows += 1;
-  } else {
-    userStats.numUniqueTitlesWatched.movies += 1;
-  }
-}
-
-function logUniqueTitlesWatched() {
-  userStats.numUniqueTitlesWatched.total += 1;
-}
-
-/**
- * Prints Total Unique Titles Watched of the user
- */
-function getUniqueTitlesWatched() {
-  console.log(`Total Titles: ${userStats.numUniqueTitlesWatched.total}`);
-  console.log(`Total TV Shows: ${userStats.numUniqueTitlesWatched.tvShows}`);
-  console.log(`Total Movies: ${userStats.numUniqueTitlesWatched.movies}`);
-}
-
-/*
- * ------------------------------
- *    TOTAL WATCH TIME
- * ------------------------------
- */
-
-/**
- * Updates userStats.totalWatchTime] and userStats[watch_time_by_title] for each title
- *
- * @function
- * @param {string} normalizedTitle - Normalized title used as the key
- * @param {int} mediaType - TV Show (1) or Movie (0)
- * @param {int} timeWatched - Number of minutes watched
- */
-function logWatchTime(normalizedTitle, mediaType, timeWatched) {
-  userStats.totalWatchTime += timeWatched;
-
-  if (userStats.watchTimeByTitle[normalizedTitle]) {
-    userStats.watchTimeByTitle[normalizedTitle].minutes += timeWatched;
-  } else {
-    userStats.watchTimeByTitle[normalizedTitle] = {
-      mediaType: mediaType,
-      minutes: timeWatched,
-    };
-  }
-}
-
-/**
- * Prints userStats["total_watch_time"] of the user
- */
-function getTotalWatchTime() {
-  console.log(`${userStats.totalWatchTime} minutes`);
-  console.log(
-    `That’s about ${(userStats.totalWatchTime / 60).toFixed(2)} hours`,
-  );
-}
-
-/*
- * ------------------------------
- *    TOP WATCHED TITLES
- * ------------------------------
- */
-
-function logTopWatchedTitles() {
-  userStats.topWatchedTitles = Object.entries(userStats.watchTimeByTitle)
-    .sort((a, b) => b[1].minutes - a[1].minutes)
-    .slice(0, 5);
-}
-
-/**
- * Prints Top 5 Watched Titles by Watch Time
- */
-function getTopWatchedTitles() {
-  userStats.topWatchedTitles.forEach(([key, data]) => {
-    console.log(
-      `${helper.getOriginalTitle(normalizedToOriginal, key)}: ${data.minutes} minutes`,
-    );
+          resolve({ idList, titleList });
+        } catch (error) {
+          reject(error);
+        }
+      });
   });
-}
-
-/*
- * ------------------------------
- *  MOST WATCHED TITLE (SINGULAR)
- * ------------------------------
- */
-
-/**
- * Prints Most Watched Title
- */
-function logMostWatchedTitle() {
-  const [title, mostWatched] = Object.entries(userStats.watchTimeByTitle).sort(
-    (a, b) => b[1].minutes - a[1].minutes,
-  )[0];
-
-  userStats.mostWatchedTitle.title = helper.getOriginalTitle(
-    normalizedToOriginal,
-    title,
-  );
-  userStats.mostWatchedTitle.minutes = mostWatched.minutes;
-}
-
-function getMostWatchedTitle() {
-  console.log(
-    `${userStats.mostWatchedTitle.title} (${userStats.mostWatchedTitle.minutes} minutes)`,
-  );
-}
-
-/*
- * ------------------------------
- *     MOST BINGED SHOW
- * ------------------------------
- */
-
-/*
- * A binge is defined as a show you've watched back-to-back a minimum of once within 24 hours of the previous episode.
- */
-function logMostBingedShow() {
-  function getHourDiff(date2, date1) {
-    return (date2 - date1) / (1000 * 60 * 60);
-  }
-
-  let mostBingedShow = "";
-
-  // Dates the show was binged on
-  let mostBingedDates = [];
-
-  // Longest number of episodes binged of a show
-  let longestBingeStreak = 1;
-
-  // 2 hour gap allowed between eps
-  const minEpisodeGap = 2;
-
-  for (const [title, value] of Object.entries(titleToDateFreq)) {
-    // Sorted Dates - Descending Fashion
-    let dateList = value.datesWatched.sort((a, b) => a - b);
-
-    // Current longest streak of episodes binged of title
-    let currentBingeStreak = 1;
-
-    let epsWatchedConsecutively = 1;
-
-    let currBingedDates = [dateList[0]];
-    // let dateStartedBinge = null;
-
-    // Going through the dates of each Title
-    for (let i = 1; i < dateList.length; i++) {
-      // if (dateStartedBinge == null) {
-      //   dateStartedBinge = dateList[i - 1];
-      //   dates.push(dateList[i - 1]);
-      // }
-
-      const diff = getHourDiff(dateList[i], dateList[i - 1]);
-
-      // Episodes watched within the same day
-      if (diff <= minEpisodeGap) {
-        epsWatchedConsecutively += 1;
-        currentBingeStreak += 1;
-        currBingedDates.push(dateList[i]);
-
-        // Continue binge streak ONLY if you've watched 3 eps back-to-back already
-      } else if (epsWatchedConsecutively >= 3 && diff < 30) {
-        // reset consecutive count because you stopped watching back-to-back
-        epsWatchedConsecutively = 1;
-        currentBingeStreak += 1;
-        currBingedDates.push(dateList[i]);
-
-        // FULL RESET
-        // Episodes not watched within minEpisodeGap
-        // Did not meet epsWatchedConsecutively >= 3 to keep streak alive
-      } else {
-        epsWatchedConsecutively = 1;
-        currentBingeStreak = 1;
-        currBingedDates = [];
-      }
-
-      if (currentBingeStreak > longestBingeStreak) {
-        mostBingedShow = title;
-        longestBingeStreak = currentBingeStreak;
-        mostBingedDates = currBingedDates;
-      }
-    }
-  }
-  userStats.mostBingedShow = {
-    title: mostBingedShow,
-    eps_binged: longestBingeStreak,
-    dates_binged: mostBingedDates,
-  };
-}
-
-function getMostBingedShow() {
-  const title = helper.getOriginalTitle(
-    normalizedToOriginal,
-    userStats.mostBingedShow.title,
-  );
-
-  const dates = userStats.mostBingedShow.dates_binged;
-
-  // helper.print(`${userStats.mostBingedShow}: ${dates}`);
-
-  if (dates) {
-    const startBinge = dates[0].toDateString();
-    const endBinge = dates[dates.length - 1].toDateString();
-
-    console.log(
-      `${title}: ${userStats.mostBingedShow.eps_binged} episodes watched back-to-back!`,
-    );
-
-    console.log(`You binged from ${startBinge} to ${endBinge}!`);
-  } else {
-    console.log("No dates available");
-  }
-}
-
-/*
- * ------------------------------
- *     NUMBER OF SHOWS COMPLETED
- * ------------------------------
- */
-
-function logNumShowsCompleted(numEps, showName) {
-  let titleFrequency = helper.getTitleWatchFrequency(titleToDateFreq, showName);
-
-  // helper.print(`${showName} || API: ${numEps} || USER: ${titleFrequency}`);
-
-  if (titleFrequency >= numEps) {
-    userStats.showsCompleted[0] += 1;
-    userStats.showsCompleted.push(showName);
-  }
-}
-
-function getNumShowsCompleted() {
-  console.log(`Amount Completed: ${userStats.showsCompleted[0]}`);
-  for (let i = 1; i < userStats.showsCompleted.length; i++) {
-    console.log(userStats.showsCompleted[i]);
-  }
-}
-
-/*
- * ------------------------------
- *     OLDEST WATCHED SHOW
- * ------------------------------
- */
-
-function logOldestWatchedShowAndMovie(mediaType, release_date, title) {
-  let date = new Date(release_date);
-  // TV Show
-  if (mediaType == 0) {
-    if (userStats.oldestWatchedShow.title == "") {
-      userStats.oldestWatchedShow = {
-        title: title,
-        dateObject: date,
-        date: date.toDateString(),
-      };
-    } else if (date < userStats.oldestWatchedShow.dateObject) {
-      userStats.oldestWatchedShow = {
-        title: title,
-        dateObject: date,
-        date: date.toDateString(),
-      };
-    }
-    // Movie
-  } else {
-    if (userStats.oldestWatchedMovie.title == "") {
-      userStats.oldestWatchedMovie = {
-        title: title,
-        dateObject: date,
-        date: date.toDateString(),
-      };
-    } else if (date < userStats.oldestWatchedMovie.dateObject) {
-      userStats.oldestWatchedMovie = {
-        title: title,
-        dateObject: date,
-        date: date.toDateString(),
-      };
-    }
-  }
-}
-
-function getOldestWatchedShow() {
-  console.log(
-    `${userStats.oldestWatchedShow.title}: ${userStats.oldestWatchedShow.date}`,
-  );
-}
-
-function getOldestWatchedMovie() {
-  console.log(
-    `${userStats.oldestWatchedMovie.title}: ${userStats.oldestWatchedMovie.date}`,
-  );
-}
-
-/*
- * ------------------------------
- *     MISSING TITLES
- * ------------------------------
- */
-function logMissedTitles(match, mediaType) {
-  userStats.missedTitles.count += 1;
-
-  if (mediaType == 0) {
-    userStats.missedTitles.titlesArr.push(match.original_name);
-  } else {
-    userStats.missedTitles.titlesArr.push(match.original_title);
-  }
-}
-
-function getMissedTitles() {
-  console.log(`Missed: ${userStats.missedTitles.count}`);
-  console.log(userStats.missedTitles.titlesArr);
-  // for (const title in userStats.missedTitles.titlesArr) {
-  //   console.log(title);
-  // }
 }
 
 // ========================================
