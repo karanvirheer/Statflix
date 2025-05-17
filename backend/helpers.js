@@ -48,10 +48,12 @@ export function print(item) {
  * @returns {int} Runtime of the episode
  */
 export function getEpisodeRunTime(detailsData) {
-  if (detailsData.episode_run_time.length == 0) {
+  if (detailsData.episode_run_time?.length == 0) {
     return detailsData.last_episode_to_air?.runtime || 0;
-  } else {
+  } else if (detailsData.episode_run_time?.length > 0) {
     return detailsData.episode_run_time[0];
+  } else {
+    return 0;
   }
 }
 
@@ -167,6 +169,30 @@ export function getTitle(rawTitle) {
   let trimmedTitle = rawTitle.split(":")[0].trim();
   parsedTitle = parsedTitle[0].replaceAll(":", "");
   return [trimmedTitle, parsedTitle, type];
+}
+
+export function getBaseTitle(title) {
+  const separators = [
+    "Season",
+    "Episode",
+    "Part",
+    "Volume",
+    "Limited Series",
+    "Chapter",
+  ];
+  for (let sep of separators) {
+    const idx = title.toLowerCase().indexOf(sep.toLowerCase());
+    if (idx !== -1) {
+      const sub = title
+        .substring(0, idx)
+        .split(":")
+        .slice(0, -1)
+        .join(":")
+        .trim();
+      return sub || title.trim();
+    }
+  }
+  return title.trim();
 }
 
 /**
