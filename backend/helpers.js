@@ -123,25 +123,21 @@ export function normalizeTitle(title) {
  * @returns {string} Formatted and searchable TMDb Title
  * Reference: https://developer.themoviedb.org/reference/search-tv
  */
-export function getTitle(rawTitle) {
+export function getBaseTitle(rawTitle) {
   let parsedTitle = "";
-  let type = 2;
 
   switch (true) {
     // TV Show
     case rawTitle.includes("Season"):
       parsedTitle = rawTitle.split(/(?=\s*Season)/i);
-      type = 0;
       break;
     // TV Show
     case rawTitle.includes("Limited Series"):
       parsedTitle = rawTitle.split(/(?=\s*Limited Series)/i);
-      type = 0;
       break;
     // TV Show
     case rawTitle.includes("Episode"):
       parsedTitle = rawTitle.split(/(?=\s*Episode)/i);
-      type = 0;
       break;
     // Either
     case rawTitle.includes("Volume"):
@@ -166,12 +162,18 @@ export function getTitle(rawTitle) {
       break;
   }
 
-  let trimmedTitle = rawTitle.split(":")[0].trim();
+  // let trimmedTitle = rawTitle.split(":")[0].trim();
   parsedTitle = parsedTitle[0].replaceAll(":", "");
-  return [trimmedTitle, parsedTitle, type];
+  return parsedTitle;
 }
 
-export function getBaseTitle(title) {
+/**
+ * Parses and removed all episodic related keywords from the title.
+ *
+ * @param {string} title - Title from CSV
+ * @returns {title} The trimmed title
+ */
+export function removeEpisodicKeywords(title) {
   const separators = [
     "Season",
     "Episode",
@@ -180,16 +182,11 @@ export function getBaseTitle(title) {
     "Limited Series",
     "Chapter",
   ];
+
   for (let sep of separators) {
     const idx = title.toLowerCase().indexOf(sep.toLowerCase());
     if (idx !== -1) {
-      const sub = title
-        .substring(0, idx)
-        .split(":")
-        .slice(0, -1)
-        .join(":")
-        .trim();
-      return sub || title.trim();
+      title = title.substring(0, idx).split(":").slice(0, -1).join(":").trim();
     }
   }
   return title.trim();
