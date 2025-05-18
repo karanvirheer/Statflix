@@ -1,3 +1,4 @@
+import stringSimilarity from "string-similarity";
 import pkg from "pg";
 const { Pool } = pkg;
 
@@ -11,9 +12,25 @@ const pool = new Pool({
 
 export default pool;
 
+export async function getBestTitleMatch(normalizedTitle) {
+  const { rows } = await pool.query(`SELECT normalized_title FROM tmdb_titles`);
+  const titles = rows.map((r) => r.normalized_title);
+  const { bestMatch } = stringSimilarity.findBestMatch(normalizedTitle, titles);
+
+  if (bestMatch.rating > 0.6) {
+    const res = await pool.query(
+      `SELECT * FROM tmdb_titles WHERE normalized_title = $1`,
+      [bestMatch.target],
+    );
+    return res.rows[0];
+  }
+
+  return null;
+}
+
 export async function getCachedResult(normalizedTitle) {
   const res = await pool.query(
-    `SELECT * FROM tmdb_titles WHERE normalized_title = $1`,
+    `SELECT * FROM tmdb_titles WHERE normalized_title ILIKE $1`,
     [normalizedTitle],
   );
   return res.rows[0] || null;
