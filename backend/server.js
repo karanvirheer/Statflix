@@ -108,6 +108,9 @@ const userStats = {
 let titleToDateFreq = {};
 let titletoMediaType = {};
 
+let totalRows = 0;
+let currRows = 0;
+
 const manualOverrides = {
   fullhouse: { id: 4313, media_type: "tv", type: 0 }, // U.S. sitcom
   richinlove: { id: 656563, media_type: "movie", type: 1 }, // Ricos de Amor (2020)
@@ -240,7 +243,7 @@ async function findBestMatchedTitle(normalizedTitle) {
     if (score > bestScore) {
       bestScore = score;
       bestCandidate = result;
-      let titleType = mediaType === "movie" ? 1 : 0;
+      // let titleType = mediaType === "movie" ? 1 : 0;
     }
   }
 
@@ -292,7 +295,7 @@ async function findBestMatchedTitle(normalizedTitle) {
         similarity * 100 +
         (netflixAvailable ? 500 : 0) +
         (isOnMajor ? 200 : 0) +
-        title(isEnglish ? 200 : -400) +
+        (isEnglish ? 200 : -400) +
         (isFromUS ? 150 : isFromUK ? 75 : 0) +
         (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
         (result.vote_average ?? 0) * 7 +
@@ -302,7 +305,7 @@ async function findBestMatchedTitle(normalizedTitle) {
       if (score > bestScore) {
         bestScore = score;
         bestCandidate = result;
-        titleType = result.media_type === "movie" ? 1 : 0;
+        // titleType = result.media_type === "movie" ? 1 : 0;
       }
     }
   }
@@ -454,7 +457,7 @@ function logUserStats(result, normalizedTitle) {
     userStats,
     mediaType,
     result.release_date || result.first_air_date,
-    result.normalized_title,
+    normalizedTitle,
   );
 }
 
@@ -501,8 +504,6 @@ function parseCSV() {
 
           // Check if Date was properly formatted
           if (!isNaN(date)) {
-            // titletoMediaType[normalizedTitle] = mediaType;
-
             if (!titleToDateFreq[title]) {
               titleToDateFreq[title] = {
                 datesWatched: [],
@@ -524,8 +525,12 @@ function parseCSV() {
             let result = await getData(title);
 
             if (result) {
-              logUserStats(result, result.normalized_title);
+              logUserStats(result, title);
             }
+            currRows += 1;
+            console.log(
+              `${currRows} / ${userStats.numUniqueTitlesWatched.total}`,
+            );
           }
 
           console.log("✅ CSV processing done.");
