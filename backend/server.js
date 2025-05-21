@@ -17,8 +17,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-const filePath = "./ViewingActivity.csv";
-// const filePath = "./big.csv";
+// const filePath = "./ViewingActivity.csv";
+const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
@@ -124,9 +124,10 @@ async function main() {
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
-async function getMostPopular(normalizedTitle) {
+async function getTitleFromTMDB(normalizedTitle) {
   const titleChunks = normalizedTitle.split(" ");
   let topCandidates = [];
+  let result = null;
 
   // Get Top Results from TMDb
   while (titleChunks.length > 0) {
@@ -142,11 +143,17 @@ async function getMostPopular(normalizedTitle) {
   }
   let topChoice = topCandidates.sort((a, b) => b.popularity - a.popularity)[0];
 
-  let result =
-    topChoice.media_type === "movie"
-      ? await api.getMovieDetails(topChoice.id)
-      : await api.getTVDetails(topChoice.id);
-  result.media_type = topChoice.media_type;
+  // helper.print("TOP CHOICE");
+  // console.log(topChoice);
+
+  if (topChoice) {
+    result =
+      topChoice.media_type === "movie"
+        ? await api.getMovieDetails(topChoice.id)
+        : await api.getTVDetails(topChoice.id);
+    result.media_type = topChoice.media_type;
+  }
+
   return result;
 }
 
@@ -165,18 +172,6 @@ async function getData(normalizedTitle) {
     return result;
   }
 
-  // 2
-  // Search by progressively removing ":" keyword
-  let titleChunks = normalizedTitle.trim().split(":");
-  while (titleChunks.length > 0) {
-    const searchTerm = titleChunks.join("");
-    result = await db.getBestTitleMatch(searchTerm);
-    if (result) {
-      return result;
-    }
-    titleChunks.pop();
-  }
-
   // 3
   // Pride & Prejudice edge case
   // The Office (U.S) edge case
@@ -188,9 +183,22 @@ async function getData(normalizedTitle) {
     return result;
   }
 
-  let match = await getMostPopular(normalizedTitle);
+  // 2
+  // Search by progressively removing ":" keyword
+  if (normalizedTitle.indexOf(":") > -1) {
+    let titleChunks = normalizedTitle.trim().split(":");
+    while (titleChunks.length > 0) {
+      const searchTerm = titleChunks.join("");
+      result = await db.getBestTitleMatch(searchTerm);
+      if (result) {
+        return result;
+      }
+      titleChunks.pop();
+    }
+  }
+
+  let match = await getTitleFromTMDB(normalizedTitle);
   if (match) {
-    helper.print(`${normalizedTitle}`);
     if (match.media_type == "tv") {
       result = {
         normalized_title: normalizedTitle || null,
