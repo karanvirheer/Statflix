@@ -17,8 +17,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-// const filePath = "./ViewingActivity.csv";
-const filePath = "./big.csv";
+const filePath = "./ViewingActivity.csv";
+// const filePath = "./big.csv";
 
 // const filePath = "./tests/Test01_Empty.csv";
 // const filePath = "./tests/Test02_WrongTitles.csv";
@@ -106,37 +106,6 @@ const userStats = {
 };
 
 let titleToDateFreq = {};
-let titletoMediaType = {};
-
-let totalRows = 0;
-let currRows = 0;
-
-const manualOverrides = {
-  fullhouse: { id: 4313, media_type: "tv", type: 0 }, // U.S. sitcom
-  richinlove: { id: 656563, media_type: "movie", type: 1 }, // Ricos de Amor (2020)
-  weddingseason: { id: 818612, media_type: "movie", type: 1 },
-  theempress: { id: 131488, media_type: "tv", type: 0 },
-  bananasplit: { id: 493058, media_type: "movie", type: 1 },
-  heist: { id: 108139, media_type: "tv", type: 0 }, // Netflix docu-series
-  you: { id: 78191, media_type: "tv", type: 0 },
-  elite: { id: 76669, media_type: "tv", type: 0 },
-  love: { id: 65988, media_type: "tv", type: 0 }, // Netflix's "Love" (Judd Apatow)
-  dark: { id: 70523, media_type: "tv", type: 0 },
-  bruised: { id: 654974, media_type: "movie", type: 1 }, // Halle Berry Netflix original
-  curve: { id: 356094, media_type: "movie", type: 1 }, // horror with many name conflicts
-  ratched: { id: 87108, media_type: "tv", type: 0 },
-  arcane: { id: 94605, media_type: "tv", type: 0 },
-  fate: { id: 117303, media_type: "tv", type: 0 }, // Fate: The Winx Saga
-  candy: { id: 156002, media_type: "tv", type: 0 }, // often misrouted to 2006 horror
-  bloodredsky: { id: 567189, media_type: "movie", type: 1 },
-  bodies: { id: 205715, media_type: "tv", type: 0 }, // 2023 Netflix crime show
-  atypical: { id: 71738, media_type: "tv", type: 0 },
-  outerbanks: { id: 93484, media_type: "tv", type: 0 },
-  lupin: { id: 96677, media_type: "tv", type: 0 },
-  mindhunter: { id: 67744, media_type: "tv", type: 0 },
-  afterlife: { id: 86374, media_type: "tv", type: 0 }, // Ricky Gervais
-  theplatform: { id: 619592, media_type: "movie", type: 1 },
-};
 
 /*
  * ==============================
@@ -155,171 +124,30 @@ async function main() {
   // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
 }
 
-function basicTitleSimilarity(titleA, titleB) {
-  const normalize = (str) =>
-    str
-      .toLowerCase()
-      .replace(/[^a-z0-9]/gi, " ")
-      .split(/\s+/)
-      .filter(Boolean);
-  const setA = new Set(normalize(titleA));
-  const setB = new Set(normalize(titleB));
-  const intersection = [...setA].filter((word) => setB.has(word));
-  const union = new Set([...setA, ...setB]);
-  return intersection.length / union.size;
-}
-
-async function findBestMatchedTitle(normalizedTitle) {
-  let bestCandidate = null;
-  let bestScore = -Infinity;
-
-  if (manualOverrides[normalizedTitle]) {
-    const override = manualOverrides[normalizedTitle];
-    titletoMediaType[normalizedTitle] = override.type;
-    return override.media_type === "tv"
-      ? await api.getTVDetails(override.id)
-      : await api.getMovieDetails(override.id);
-  }
-
+async function getMostPopular(normalizedTitle) {
   const titleChunks = normalizedTitle.split(" ");
   let topCandidates = [];
 
-  // 1. Get Top Results from TMDb
+  // Get Top Results from TMDb
   while (titleChunks.length > 0) {
     const searchTerm = titleChunks.join(" ");
     const results = (await api.searchTVAndMovie(searchTerm))?.results || [];
 
     topCandidates = results
       .filter((r) => r.media_type === "tv" || r.media_type === "movie")
-      .slice(0, 10); // Grab top 10 to give Netflix priority
+      .slice(0, 10);
 
     if (topCandidates.length > 0) break;
-    normalizedTitle;
-    titleChunks.pop(); // Trim title and retry
+    titleChunks.pop();
   }
+  let topChoice = topCandidates.sort((a, b) => b.popularity - a.popularity)[0];
 
-  // 2. Score Candidates
-  for (const result of topCandidates) {
-    const candidateTitle = result.title || result.name || "";
-    const mediaType = result.media_type;
-    const similarity = basicTitleSimilarity(candidateTitle, normalizedTitle);
-    const exactMatch =
-      candidateTitle.toLowerCase() === normalizedTitle.toLowerCase();
-    const releaseYear =
-      parseInt(
-        (result.release_date || result.first_air_date || "")?.slice(0, 4),
-      ) || 0;
-
-    const wp =
-      mediaType === "tv"
-        ? await api.searchTVWatchProvider(result.id)
-        : await api.searchMovieWatchProvider(result.id);
-
-    const netflixAvailable = helper.isAvailableOnNetflix(wp);
-    const isOnMajor = helper.isOnMajorPlatform(wp);
-    const isEnglish = result.original_language === "en";
-    const isFromUS = result.origin_country?.includes("US");
-    const isFromUK = result.origin_country?.includes("GB");
-
-    // Filters
-    if (!isEnglish && !netflixAvailable) continue;
-    if ((result.vote_count ?? 0) === 0 && !netflixAvailable) continue;
-    if (releaseYear < 1990 && !netflixAvailable) continue;
-    if (similarity < 0.1 && !exactMatch) continue;
-
-    // Scoring
-    const score =
-      (exactMatch ? 300 : 0) +
-      similarity * 100 +
-      (netflixAvailable ? 500 : 0) +
-      (isOnMajor ? 200 : 0) +
-      (isEnglish ? 200 : -400) +
-      (isFromUS ? 150 : isFromUK ? 75 : 0) +
-      (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
-      (result.vote_average ?? 0) * 7 +
-      Math.min(result.vote_count ?? 0, 50) +
-      (result.popularity ?? 0) * 2;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestCandidate = result;
-      // let titleType = mediaType === "movie" ? 1 : 0;
-    }
-  }
-
-  // 3. Fallback (TV or Movie Only)
-  if (!bestCandidate) {
-    const [tvOut, movieOut] = await Promise.all([
-      api.searchTVShow(normalizedTitle),
-      api.searchMovie(normalizedTitle),
-    ]);
-
-    const fallbackResults = [
-      ...(tvOut?.results?.slice(0, 1) || []).map((r) => ({
-        ...r,
-        media_type: "tv",
-      })),
-      ...(movieOut?.results?.slice(0, 1) || []).map((r) => ({
-        ...r,
-        media_type: "movie",
-      })),
-    ];
-
-    for (const result of fallbackResults) {
-      const candidateTitle = result.title || result.name || "";
-      const similarity = basicTitleSimilarity(candidateTitle, normalizedTitle);
-      const exactMatch =
-        candidateTitle.toLowerCase() === normalizedTitle.toLowerCase();
-      const releaseYear =
-        parseInt(
-          (result.release_date || result.first_air_date || "")?.slice(0, 4),
-        ) || 0;
-
-      const wp =
-        result.media_type === "tv"
-          ? await api.searchTVWatchProvider(result.id)
-          : await api.searchMovieWatchProvider(result.id);
-
-      const netflixAvailable = helper.isAvailableOnNetflix(wp);
-      const isOnMajor = helper.isOnMajorPlatform(wp);
-      const isEnglish = result.original_language === "en";
-      const isFromUS = result.origin_country?.includes("US");
-      const isFromUK = result.origin_country?.includes("GB");
-
-      if (!isEnglish && !netflixAvailable) continue;
-      if (releaseYear < 1990 && !netflixAvailable) continue;
-      if (similarity < 0.1 && !exactMatch) continue;
-
-      const score =
-        (exactMatch ? 300 : 0) +
-        similarity * 100 +
-        (netflixAvailable ? 500 : 0) +
-        (isOnMajor ? 200 : 0) +
-        (isEnglish ? 200 : -400) +
-        (isFromUS ? 150 : isFromUK ? 75 : 0) +
-        (releaseYear >= 2020 ? 100 : releaseYear >= 2010 ? 50 : 0) +
-        (result.vote_average ?? 0) * 7 +
-        Math.min(result.vote_count ?? 0, 50) +
-        (result.popularity ?? 0) * 2;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestCandidate = result;
-        // titleType = result.media_type === "movie" ? 1 : 0;
-      }
-    }
-  }
-
-  // titletoMediaType[normalizedTitle] = titleType;
-  if (bestCandidate) {
-    if (bestCandidate.media_type === "movie") {
-      return await api.getMovieDetails(bestCandidate.id);
-    } else {
-      return await api.getTVDetails(bestCandidate.id);
-    }
-  } else {
-    return null;
-  }
+  let result =
+    topChoice.media_type === "movie"
+      ? await api.getMovieDetails(topChoice.id)
+      : await api.getTVDetails(topChoice.id);
+  result.media_type = topChoice.media_type;
+  return result;
 }
 
 /**
@@ -332,18 +160,10 @@ async function getData(normalizedTitle) {
   let result = {};
 
   // 1
-  // Search with episodic keywords removed
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
-    // helper.print(`CACHE HIT: ${normalizedTitle}`);
     return result;
   }
-
-  // result = await db.getBestTitleMatch(normalizedTitle);
-  // if (result) {
-  //   helper.print(`${normalizedTitle}`);
-  //   return result;
-  // }
 
   // 2
   // Search by progressively removing ":" keyword
@@ -352,7 +172,6 @@ async function getData(normalizedTitle) {
     const searchTerm = titleChunks.join("");
     result = await db.getBestTitleMatch(searchTerm);
     if (result) {
-      // helper.print(`${normalizedTitle}`);
       return result;
     }
     titleChunks.pop();
@@ -369,58 +188,47 @@ async function getData(normalizedTitle) {
     return result;
   }
 
-  result = await findBestMatchedTitle(normalizedTitle);
-  if (result) {
+  let match = await getMostPopular(normalizedTitle);
+  if (match) {
     helper.print(`${normalizedTitle}`);
+    if (match.media_type == "tv") {
+      result = {
+        normalized_title: normalizedTitle || null,
+        original_title: normalizedTitle || null,
+        tmdb_id: match.id || null,
+        media_type: 0,
+        genres: match.genres || null,
+        runtime: null,
+        number_of_episodes: match.number_of_episodes || null,
+        episode_run_time: await helper.getEpisodeRunTime(match),
+        release_date: null,
+        first_air_date: match.first_air_date || null,
+        poster_path: match.poster_path || null,
+      };
+
+      // Movie
+    } else {
+      result = {
+        normalized_title: normalizedTitle || null,
+        original_title: normalizedTitle || null,
+        tmdb_id: match.id || null,
+        media_type: 1,
+        genres: match.genres || null,
+        runtime: match.runtime || null,
+        number_of_episodes: null,
+        episode_run_time: null,
+        release_date: match.release_date || null,
+        first_air_date: null,
+        poster_path: match.poster_path || null,
+      };
+    }
+    // await db.cacheResult(result);
+    await new Promise((r) => setTimeout(r, 300));
     return result;
   } else {
     userStats.numUniqueTitlesWatched.total -= 1;
     stats.logMissedTitles(userStats, normalizedTitle);
   }
-
-  // let detailsData = {};
-  // helper.print(`${normalizedTitle}`);
-  // let match = await findBestMatchedTitle(normalizedTitle, originalTitle);
-  // if (match) {
-  //   if (match.media_type == "tv") {
-  //     detailsData = await api.getTVDetails(match.id);
-  //     result = {
-  //       normalized_title: normalizedTitle || null,
-  //       original_title: originalTitle || null,
-  //       tmdb_id: detailsData.id || null,
-  //       mediaType: 0,
-  //       genres: detailsData.genres || null,
-  //       runtime: null,
-  //       number_of_episodes: detailsData.number_of_episodes || null,
-  //       episode_run_time: await helper.getEpisodeRunTime(detailsData),
-  //       release_date: null,
-  //       first_air_date: detailsData.first_air_date || null,
-  //       poster_path: detailsData.poster_path || null,
-  //     };
-  //
-  //     // Movie
-  //   } else {
-  //     detailsData = await api.getMovieDetails(match.id);
-  //     result = {
-  //       normalized_title: normalizedTitle || null,
-  //       original_title: originalTitle || null,
-  //       tmdb_id: detailsData.id || null,
-  //       mediaType: 1,
-  //       genres: detailsData.genres || null,
-  //       runtime: detailsData.runtime || null,
-  //       number_of_episodes: null,
-  //       episode_run_time: null,
-  //       release_date: detailsData.release_date || null,
-  //       first_air_date: null,
-  //       poster_path: detailsData.poster_path || null,
-  //     };
-  //   }
-  //   await db.cacheResult(result);
-  // }
-  // await new Promise((r) => setTimeout(r, 300));
-  // Optional delay to avoid hammering the API in case of no result
-  // Pause execution until the Promise is resolved
-  // (r) => (r, 300) Means pause for 300ms everytime then resolve the Promise
 
   return result;
 }
@@ -503,7 +311,7 @@ function parseCSV() {
           const date = helper.getDate(row.Date);
 
           // Check if Date was properly formatted
-          if (!isNaN(date)) {
+          if (!isNaN(date) && helper.isValidString(title)) {
             if (!titleToDateFreq[title]) {
               titleToDateFreq[title] = {
                 datesWatched: [],
@@ -520,6 +328,7 @@ function parseCSV() {
         }
       })
       .on("end", async () => {
+        let currRow = 0;
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
@@ -527,9 +336,10 @@ function parseCSV() {
             if (result) {
               logUserStats(result, title);
             }
-            currRows += 1;
+
+            currRow += 1;
             console.log(
-              `${currRows} / ${userStats.numUniqueTitlesWatched.total}`,
+              `${currRow} / ${userStats.numUniqueTitlesWatched.total}`,
             );
           }
 
