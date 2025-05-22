@@ -114,25 +114,22 @@ let titleToDateFreq = {};
  * ==============================
  */
 
-main();
+await main();
 
 async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  // await db.createTmdbTable().catch(console.error);
-  // await kaggle.parseKaggleShowDataset();
-  // await kaggle.parseKaggleMovieDataset();
-  await parseCSV();
-  // console.log("!!!!!!!!!! ENDING !!!!!!!!!!!!!");
+  let result = await getTitleFromTMDB("Safe");
+  console.log(result);
+  // await parseCSV();
 }
 
 async function getTitleFromTMDB(normalizedTitle) {
-  const titleChunks = normalizedTitle.split(" ");
   let topCandidates = [];
   let result = null;
 
-  // Get Top Results from TMDb
+  let titleChunks = normalizedTitle.trim().split(":");
   while (titleChunks.length > 0) {
-    const searchTerm = titleChunks.join(" ");
+    const searchTerm = helper.removeNonAlphaNumeric(titleChunks.join(""));
     const results = (await api.searchTVAndMovie(searchTerm))?.results || [];
 
     topCandidates = results
@@ -142,12 +139,37 @@ async function getTitleFromTMDB(normalizedTitle) {
     if (topCandidates.length > 0) break;
     titleChunks.pop();
   }
-  let topChoice = topCandidates.sort((a, b) => b.popularity - a.popularity)[0];
 
-  // helper.print("TOP CHOICE");
-  // console.log(topChoice);
+  let sortedByPopularity = topCandidates.sort(
+    (a, b) => b.popularity - a.popularity,
+  );
+  let topChoice = sortedByPopularity[0];
+
+  // If top choice isn't on NETFLIX just double-check to see if there is another that is
+  let wp =
+    topChoice.media_type === "tv"
+      ? await api.searchTVWatchProvider(topChoice.id)
+      : await api.searchMovieWatchProvider(topChoice.id);
+
+  const onNetflix = helper.isAvailableOnNetflix(wp);
+  console.log(onNetflix);
+  if (!onNetflix) {
+    for (const title in sortedByPopularity) {
+      wp =
+        title.media_type === "tv"
+          ? await api.searchTVWatchProvider(title.id)
+          : await api.searchMovieWatchProvider(title.id);
+      if (helper.isAvailableOnNetflix(wp)) {
+        topChoice = title;
+        break;
+      }
+    }
+  }
 
   if (topChoice) {
+    // helper.print("TOP CHOICE");
+    // console.log(topChoice);
+
     result =
       topChoice.media_type === "movie"
         ? await api.getMovieDetails(topChoice.id)
@@ -173,7 +195,7 @@ async function getData(normalizedTitle) {
     return result;
   }
 
-  // 3
+  // 2
   // Pride & Prejudice edge case
   // The Office (U.S) edge case
   let searchTerm = normalizedTitle.replaceAll("&", "and");
@@ -184,7 +206,7 @@ async function getData(normalizedTitle) {
     return result;
   }
 
-  // 2
+  // 3
   // Search by progressively removing ":" keyword
   if (normalizedTitle.indexOf(":") > -1) {
     let titleChunks = normalizedTitle.trim().split(":");

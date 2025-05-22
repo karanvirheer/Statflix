@@ -7,27 +7,6 @@
 /**
  * Helper Function
  *
- * Removes all occurrences of title and its data from everything.
- */
-export function removeFromExistence(
-  normalizedTitle,
-  normalizedToOriginal,
-  normalizedToFull,
-  titleToType,
-  titleToDateFreq,
-  userStatsUniqueTitlesWatched,
-) {
-  delete normalizedToOriginal[normalizedTitle];
-  delete normalizedToFull[normalizedTitle];
-  delete titleToType[normalizedTitle];
-  delete titleToDateFreq[normalizedTitle];
-  delete titleToDateFreq[normalizedTitle];
-  userStatsUniqueTitlesWatched -= 1;
-}
-
-/**
- * Helper Function
- *
  * Formatted print of an item.
  *
  * @param {<String>} item - Item to be printed
@@ -72,19 +51,6 @@ export function verifyMovieOrShow(data) {
 /**
  * Helper Function
  *
- * Returns the title before it was normalized.
- * This is also known as the Original Title
- *
- * @param {string} normalizedTitle - The normalized title
- * @returns {string} Original title string
- */
-export function getOriginalTitle(normalizedToOriginal, normalizedTitle) {
-  return normalizedToOriginal[normalizedTitle];
-}
-
-/**
- * Helper Function
- *
  * Returns how many times the user has watched the title
  *
  * @param {string} normalizedTitle - The normalized title
@@ -103,17 +69,13 @@ export function getTitleWatchFrequency(titleToDateFreq, normalizedTitle) {
 /**
  * Helper Function
  *
- * Normalizes a title string to use as a consistent key.
- * Strips special characters, lowercases, and trims.
+ * Removes all non-alphanumeric characters from a string
  *
- * @param {string} title - The raw or parsed title
- * @returns {string} Normalized title string
+ * @param {string} title - Title of a show or movie
+ * @returns {string} Title with all alphanumeric's removed
  */
-export function normalizeTitle(title) {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/gi, "");
+export function removeNonAlphaNumeric(title) {
+  return title.replaceAll(/[^a-z0-9\s]/gi, "");
 }
 
 /**
