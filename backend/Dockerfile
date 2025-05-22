@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 3000
 
 # Command to run the application
-CMD ["nodemon", "server.js"]
+CMD ["nodemon", "src/server.js"]

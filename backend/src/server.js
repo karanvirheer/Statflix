@@ -3,10 +3,10 @@ const upload = multer({ dest: "uploads/" });
 import fs from "fs";
 import csv from "csv-parser";
 import dotenv from "dotenv";
-import * as api from "./tmdb.js";
-import * as helper from "./helpers.js";
-import * as db from "./db.js";
-import * as stats from "./logging.js";
+import * as api from "./api/tmdb.js";
+import * as helper from "./utils/helpers.js";
+import * as db from "./db/db.js";
+import * as stats from "./utils/logging.js";
 
 dotenv.config();
 
@@ -17,14 +17,14 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-// const filePath = "./ViewingActivity.csv";
-const filePath = "./big.csv";
+// const filePath = "./data/ViewingActivity.csv";
+const filePath = "./data/big.csv";
 
-// const filePath = "./tests/Test01_Empty.csv";
-// const filePath = "./tests/Test02_WrongTitles.csv";
-// const filePath = "./tests/Test03_ScoringTitles.csv";
-// const filePath = "./tests/Test04_1000_Titles_TVShowsOnly.csv";
-// const filePath = "./tests/Test05_MultipleUnique.csv";
+// const filePath = "./data/tests/Test01_Empty.csv";
+// const filePath = "./data/tests/Test02_WrongTitles.csv";
+// const filePath = "./data/tests/Test03_ScoringTitles.csv";
+// const filePath = "./data/tests/Test04_1000_Titles_TVShowsOnly.csv";
+// const filePath = "./data/tests/Test05_MultipleUnique.csv";
 
 // User Statistics Cache
 const userStats = {
@@ -372,7 +372,7 @@ async function parseKaggleMovieDataset() {
 
   let kaggleMovieDict = {};
 
-  const kaggleMovieFilePath = "./kaggle/movies_dataset.csv";
+  const kaggleMovieFilePath = "./data/kaggle/movies_dataset.csv";
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(kaggleMovieFilePath)
@@ -431,7 +431,7 @@ async function parseKaggleShowDataset() {
 
   let kaggleShowDict = {};
 
-  const kaggleShowFilePath = "./kaggle/shows_dataset.csv";
+  const kaggleShowFilePath = "./data/kaggle/shows_dataset.csv";
 
   return new Promise((resolve, reject) => {
     fs.createReadStream(kaggleShowFilePath)
