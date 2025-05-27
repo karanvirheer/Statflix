@@ -1,8 +1,20 @@
+import fs from "fs";
+
 /*
  * ==============================
  *        HELPER FUNCTIONS
  * ==============================
  */
+//
+// export function deleteLogFile() {
+//   fs.writeFileSync("output.json", "", "utf8");
+// }
+
+export function logToFile(title, data) {
+  let filePath = "output.json";
+  let json = JSON.stringify({ [title]: data }, null, 2);
+  fs.appendFileSync(filePath, json, "utf8");
+}
 
 /**
  * Helper Function

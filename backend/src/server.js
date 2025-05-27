@@ -114,19 +114,21 @@ let titleToDateFreq = {};
  * ==============================
  */
 
+// fs.writeFileSync("output.json", "{}", "utf8");
 await main();
 
 async function main() {
   console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  let result = await getTitleFromTMDB("Safe");
-  console.log(result);
-  // await parseCSV();
+  // let result = await getTitleFromTMDB("Dark");
+  // console.log(result);
+  await parseCSV();
 }
 
 async function getTitleFromTMDB(normalizedTitle) {
   let topCandidates = [];
   let result = null;
 
+  // Find MAX 10 Results for the Title on TMDB
   let titleChunks = normalizedTitle.trim().split(":");
   while (titleChunks.length > 0) {
     const searchTerm = helper.removeNonAlphaNumeric(titleChunks.join(""));
@@ -143,28 +145,58 @@ async function getTitleFromTMDB(normalizedTitle) {
   let sortedByPopularity = topCandidates.sort(
     (a, b) => b.popularity - a.popularity,
   );
-  let topChoice = sortedByPopularity[0];
 
-  // If top choice isn't on NETFLIX just double-check to see if there is another that is
-  let wp =
-    topChoice.media_type === "tv"
-      ? await api.searchTVWatchProvider(topChoice.id)
-      : await api.searchMovieWatchProvider(topChoice.id);
+  let highestScore = 0;
+  let highestTitle = {};
+  for (let title of sortedByPopularity) {
+    let wp =
+      title.media_type === "tv"
+        ? await api.searchTVWatchProvider(title.id)
+        : await api.searchMovieWatchProvider(title.id);
 
-  const onNetflix = helper.isAvailableOnNetflix(wp);
-  console.log(onNetflix);
-  if (!onNetflix) {
-    for (const title in sortedByPopularity) {
-      wp =
-        title.media_type === "tv"
-          ? await api.searchTVWatchProvider(title.id)
-          : await api.searchMovieWatchProvider(title.id);
-      if (helper.isAvailableOnNetflix(wp)) {
-        topChoice = title;
-        break;
-      }
+    let isAvailableOnNetflix = await helper.isAvailableOnNetflix(wp);
+    let score =
+      (title?.popularity * 100 || 0) +
+      (title?.vote_count * 2 || 0) +
+      (isAvailableOnNetflix * 100 || 0);
+
+    if (score > highestScore) {
+      highestScore = score;
+      highestTitle = title;
     }
   }
+
+  let topChoice = highestTitle;
+
+  // helper.logToFile(normalizedTitle, topChoice);
+
+  // let topChoice = sortedByPopularity[0];
+
+  // helper.print("TOP CANDIDATES");
+  // console.log(sortedByPopularity);
+
+  // If top choice isn't on NETFLIX just double-check to see if there is another that is
+  // let wp =
+  //   topChoice.media_type === "tv"
+  //     ? await api.searchTVWatchProvider(topChoice.id)
+  //     : await api.searchMovieWatchProvider(topChoice.id);
+  //
+  // const onNetflix = helper.isAvailableOnNetflix(wp);
+  //
+  // helper.print(`NETFLIX: ${onNetflix}`);
+  //
+  // if (!onNetflix) {
+  //   for (const title in sortedByPopularity) {
+  //     wp =
+  //       title.media_type === "tv"
+  //         ? await api.searchTVWatchProvider(title.id)
+  //         : await api.searchMovieWatchProvider(title.id);
+  //     if (helper.isAvailableOnNetflix(wp)) {
+  //       topChoice = title;
+  //       break;
+  //     }
+  //   }
+  // }
 
   if (topChoice) {
     // helper.print("TOP CHOICE");
@@ -300,6 +332,10 @@ function logUserStats(result, normalizedTitle) {
   );
 }
 
+// function printProgress(currRow) {
+//   console.log(`${currRow} / ${userStats.numUniqueTitlesWatched.total}`);
+// }
+
 /**
  * Parses users NetflixViewingActivity CSV file.
  * Extracts searchable TMDb titles and parses dates when user watched the title.
@@ -369,9 +405,7 @@ function parseCSV() {
             }
 
             currRow += 1;
-            console.log(
-              `${currRow} / ${userStats.numUniqueTitlesWatched.total}`,
-            );
+            // printProgress(currRow);
           }
 
           console.log("✅ CSV processing done.");
