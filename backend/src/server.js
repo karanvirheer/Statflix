@@ -18,10 +18,10 @@ dotenv.config();
 
 // CSV should be in same folder
 // const filePath = "./data/ViewingActivity.csv";
-const filePath = "./data/big.csv";
+// const filePath = "./data/big.csv";
 
 // const filePath = "./data/tests/Test01_Empty.csv";
-// const filePath = "./data/tests/Test02_WrongTitles.csv";
+const filePath = "./data/tests/Test02_WrongTitles.csv";
 // const filePath = "./data/tests/Test03_ScoringTitles.csv";
 // const filePath = "./data/tests/Test04_1000_Titles_TVShowsOnly.csv";
 // const filePath = "./data/tests/Test05_MultipleUnique.csv";
@@ -113,7 +113,6 @@ let titleToDateFreq = {};
  * ==============================
  */
 
-// fs.writeFileSync("output.json", "{}", "utf8");
 await main();
 
 async function main() {
@@ -167,45 +166,18 @@ async function getTitleFromTMDB(normalizedTitle) {
 
   let topChoice = highestTitle;
 
-  // helper.logToFile(normalizedTitle, topChoice);
-
-  // let topChoice = sortedByPopularity[0];
-
-  // helper.print("TOP CANDIDATES");
-  // console.log(sortedByPopularity);
-
-  // If top choice isn't on NETFLIX just double-check to see if there is another that is
-  // let wp =
-  //   topChoice.media_type === "tv"
-  //     ? await api.searchTVWatchProvider(topChoice.id)
-  //     : await api.searchMovieWatchProvider(topChoice.id);
-  //
-  // const onNetflix = helper.isAvailableOnNetflix(wp);
-  //
-  // helper.print(`NETFLIX: ${onNetflix}`);
-  //
-  // if (!onNetflix) {
-  //   for (const title in sortedByPopularity) {
-  //     wp =
-  //       title.media_type === "tv"
-  //         ? await api.searchTVWatchProvider(title.id)
-  //         : await api.searchMovieWatchProvider(title.id);
-  //     if (helper.isAvailableOnNetflix(wp)) {
-  //       topChoice = title;
-  //       break;
-  //     }
-  //   }
-  // }
-
   if (topChoice) {
-    // helper.print("TOP CHOICE");
-    // console.log(topChoice);
-
     result =
       topChoice.media_type === "movie"
         ? await api.getMovieDetails(topChoice.id)
         : await api.getTVDetails(topChoice.id);
-    result.media_type = topChoice.media_type;
+
+    // Handle error from API
+    if (!result) {
+      return false;
+    }
+
+    result.media_type = topChoice?.media_type;
   }
 
   return result;
@@ -413,6 +385,12 @@ function parseCSV() {
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
+
+            // Handle error from API
+            if (!result) {
+              delete titleToDateFreq[title];
+              continue;
+            }
 
             if (result.normalized_title !== title) {
               titleToDateFreq = helper.updateTitleToDateFreq(

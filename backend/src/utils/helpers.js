@@ -210,6 +210,9 @@ export function getDate(rawDate) {
  * @returns {bool} True if the title is on Netflix, otherwise returns false.
  */
 export function isAvailableOnNetflix(watchProvidersData) {
+  if (!watchProvidersData) {
+    return false;
+  }
   const PRIORITY_COUNTRIES = ["US", "GB", "CA", "AU", "IN"];
   const data = watchProvidersData?.results;
   for (const country in PRIORITY_COUNTRIES) {
