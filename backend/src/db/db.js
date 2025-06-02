@@ -12,40 +12,6 @@ const pool = new Pool({
 
 export default pool;
 
-// function cleanTitle(title) {
-//   return title
-//     .toLowerCase()
-//     .replace(/[^a-z0-9\s]/g, "")
-//     .replace(/\b(the|a|an|collection|volume|season|episode)\b/g, "")
-//     .replace(/\s+/g, " ")
-//     .trim();
-// }
-//
-// function tokenOverlap(a, b) {
-//   const tokensA = new Set(cleanTitle(a).split(" "));
-//   const tokensB = new Set(cleanTitle(b).split(" "));
-//   const overlap = [...tokensA].filter((t) => tokensB.has(t));
-//   return overlap.length / Math.max(tokensA.size, 1);
-// }
-//
-// export async function getBestTitleMatch(normalizedTitle) {
-//   const { rows } = await pool.query(`SELECT * FROM tmdb_titles`);
-//   const cleanedInput = cleanTitle(normalizedTitle);
-//
-//   const candidates = rows
-//     .map((row) => {
-//       const cleaned = cleanTitle(row.normalized_title);
-//       const sim = stringSimilarity.compareTwoStrings(cleanedInput, cleaned);
-//       const overlap = tokenOverlap(cleanedInput, cleaned);
-//       const hybridScore = 0.6 * sim + 0.4 * overlap;
-//       return { ...row, hybridScore };
-//     })
-//     .filter((c) => c.hybridScore > 0.7) // safer threshold
-//     .sort((a, b) => b.hybridScore - a.hybridScore);
-//
-//   return candidates[0] || null;
-// }
-
 export async function getBestTitleMatch(normalizedTitle) {
   const { rows } = await pool.query(`SELECT normalized_title FROM tmdb_titles`);
   const titles = rows.map((r) => r.normalized_title);
