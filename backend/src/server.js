@@ -7,7 +7,6 @@ import * as api from "./api/tmdb.js";
 import * as helper from "./utils/helpers.js";
 import * as db from "./db/db.js";
 import * as stats from "./utils/logging.js";
-import * as kaggle from "./utils/kaggle.js";
 
 dotenv.config();
 
@@ -224,6 +223,7 @@ async function getData(normalizedTitle) {
   // 1
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
+    // console.log("Method 1: EXIST");
     return result;
   }
 
@@ -235,17 +235,27 @@ async function getData(normalizedTitle) {
   searchTerm = searchTerm.substring(0, index).trim();
   result = await db.getCachedResult(searchTerm);
   if (result) {
+    // console.log("Method 2: AND SWAP");
     return result;
   }
 
   // 3
   // Search by progressively removing ":" keyword
+  // ** NOTE
+  // For this case you have to edit the titleToDateFreq entry to reflect the correct title
   if (normalizedTitle.indexOf(":") > -1) {
+    // helper.print(`Entry Point: ${normalizedTitle}`);
+
     let titleChunks = normalizedTitle.trim().split(":");
+    titleChunks.pop();
     while (titleChunks.length > 0) {
       const searchTerm = titleChunks.join("");
       result = await db.getBestTitleMatch(searchTerm);
       if (result) {
+        userStats.numUniqueTitlesWatched.total -= 1;
+        // console.log("Method 3: TITLE SIMILARITY");
+
+        // helper.print(`Exit Point: ${result.normalized_title}`);
         return result;
       }
       titleChunks.pop();
@@ -254,10 +264,11 @@ async function getData(normalizedTitle) {
 
   let match = await getTitleFromTMDB(normalizedTitle);
   if (match) {
+    // helper.print(`Entry Point: ${normalizedTitle}`);
     if (match.media_type == "tv") {
       result = {
-        normalized_title: normalizedTitle || null,
-        original_title: normalizedTitle || null,
+        normalized_title: match.name || null,
+        original_title: match.original_name || null,
         tmdb_id: match.id || null,
         media_type: 0,
         genres: match.genres || null,
@@ -272,8 +283,8 @@ async function getData(normalizedTitle) {
       // Movie
     } else {
       result = {
-        normalized_title: normalizedTitle || null,
-        original_title: normalizedTitle || null,
+        normalized_title: match.title || null,
+        original_title: match.original_title || null,
         tmdb_id: match.id || null,
         media_type: 1,
         genres: match.genres || null,
@@ -287,6 +298,9 @@ async function getData(normalizedTitle) {
     }
     // await db.cacheResult(result);
     await new Promise((r) => setTimeout(r, 300));
+    // console.log("Method 4: API CALL");
+
+    // helper.print(`Exit Point: ${result.normalized_title} || ${result.tmdb_id}`);
     return result;
   } else {
     userStats.numUniqueTitlesWatched.total -= 1;
@@ -400,8 +414,18 @@ function parseCSV() {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
 
+            if (result.normalized_title !== title) {
+              titleToDateFreq = helper.updateTitleToDateFreq(
+                result,
+                title,
+                titleToDateFreq,
+              );
+            }
+
+            await helper.logToFile(title, result);
+
             if (result) {
-              logUserStats(result, title);
+              logUserStats(result, result.normalized_title);
             }
 
             currRow += 1;
