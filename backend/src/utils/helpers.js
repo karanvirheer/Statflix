@@ -1,19 +1,38 @@
-import fs from "fs";
+import fs from "fs/promises";
 
 /*
  * ==============================
  *        HELPER FUNCTIONS
  * ==============================
  */
-//
-// export function deleteLogFile() {
-//   fs.writeFileSync("output.json", "", "utf8");
-// }
 
-export function logToFile(title, data) {
-  let filePath = "output.json";
-  let json = JSON.stringify({ [title]: data }, null, 2);
-  fs.appendFileSync(filePath, json, "utf8");
+export async function logToFile(title, data) {
+  const filePath = "output.log";
+  const line = JSON.stringify({ [title]: data }) + "\n";
+  fs.appendFile(filePath, line, "utf8");
+}
+
+export function updateTitleToDateFreq(result, originalTitle, titleToDateFreq) {
+  // Add entry for the new title
+  const newTitle = result.normalized_title;
+  if (!titleToDateFreq[newTitle]) {
+    titleToDateFreq[newTitle] = {
+      datesWatched: [],
+      titleFrequency: 0,
+    };
+  }
+
+  const newDict = titleToDateFreq[newTitle];
+  const oldDict = titleToDateFreq[originalTitle];
+
+  // Add originalTitle data to newTitle entry
+  if (titleToDateFreq[originalTitle]) {
+    newDict.datesWatched = newDict.datesWatched.concat(oldDict.datesWatched);
+    newDict.titleFrequency += oldDict.titleFrequency;
+  }
+
+  delete titleToDateFreq[originalTitle];
+  return titleToDateFreq;
 }
 
 /**
