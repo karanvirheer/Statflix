@@ -18,13 +18,16 @@ dotenv.config();
 
 // CSV should be in same folder
 // const filePath = "./data/ViewingActivity.csv";
-// const filePath = "./data/big.csv";
+const filePath = "./data/big.csv";
 
 // const filePath = "./data/tests/Test01_Empty.csv";
-const filePath = "./data/tests/Test02_WrongTitles.csv";
+// const filePath = "./data/tests/Test02_WrongTitles.csv";
 // const filePath = "./data/tests/Test03_ScoringTitles.csv";
 // const filePath = "./data/tests/Test04_1000_Titles_TVShowsOnly.csv";
 // const filePath = "./data/tests/Test05_MultipleUnique.csv";
+// const filePath = "./data/tests/Test06_SavingHope_Only.csv";
+// const filePath = "./data/tests/Test07_SavingHope_FullHouse.csv";
+// const filePath = "./data/tests/Test08_WatchTime_Test.csv";
 
 // User Statistics Cache
 const userStats = {
@@ -106,6 +109,7 @@ const userStats = {
 };
 
 let titleToDateFreq = {};
+let titleToData = {};
 
 /*
  * ==============================
@@ -195,7 +199,7 @@ async function getData(normalizedTitle) {
   // 1
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
-    // console.log("Method 1: EXIST");
+    console.log("Method 1: EXIST");
     return result;
   }
 
@@ -207,27 +211,21 @@ async function getData(normalizedTitle) {
   searchTerm = searchTerm.substring(0, index).trim();
   result = await db.getCachedResult(searchTerm);
   if (result) {
-    // console.log("Method 2: AND SWAP");
+    console.log("Method 2: AND SWAP");
     return result;
   }
 
   // 3
   // Search by progressively removing ":" keyword
-  // ** NOTE
-  // For this case you have to edit the titleToDateFreq entry to reflect the correct title
   if (normalizedTitle.indexOf(":") > -1) {
-    // helper.print(`Entry Point: ${normalizedTitle}`);
-
     let titleChunks = normalizedTitle.trim().split(":");
     titleChunks.pop();
     while (titleChunks.length > 0) {
       const searchTerm = titleChunks.join("");
       result = await db.getBestTitleMatch(searchTerm);
       if (result) {
-        userStats.numUniqueTitlesWatched.total -= 1;
-        // console.log("Method 3: TITLE SIMILARITY");
-
-        // helper.print(`Exit Point: ${result.normalized_title}`);
+        // userStats.numUniqueTitlesWatched.total -= 1;
+        console.log("Method 3: TITLE SIMILARITY");
         return result;
       }
       titleChunks.pop();
@@ -270,12 +268,12 @@ async function getData(normalizedTitle) {
     }
     // await db.cacheResult(result);
     await new Promise((r) => setTimeout(r, 300));
-    // console.log("Method 4: API CALL");
+    console.log("Method 4: API CALL");
 
     // helper.print(`Exit Point: ${result.normalized_title} || ${result.tmdb_id}`);
     return result;
   } else {
-    userStats.numUniqueTitlesWatched.total -= 1;
+    // userStats.numUniqueTitlesWatched.total -= 1;
     stats.logMissedTitles(userStats, normalizedTitle);
   }
 
@@ -382,40 +380,55 @@ function parseCSV() {
       })
       .on("end", async () => {
         let currRow = 0;
+        let tempTitleToDateFreq = {};
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
+            const newTitle = result.normalized_title;
 
             // Handle error from API
             if (!result) {
-              delete titleToDateFreq[title];
+              // update total title count
               continue;
             }
 
-            if (result.normalized_title !== title) {
-              titleToDateFreq = helper.updateTitleToDateFreq(
-                result,
-                title,
-                titleToDateFreq,
-              );
-            }
+            // Combine same title data
+            tempTitleToDateFreq = helper.updateTitleToDateFreq(
+              title,
+              newTitle,
+              titleToDateFreq,
+              tempTitleToDateFreq,
+            );
 
             await helper.logToFile(title, result);
 
-            if (result) {
-              logUserStats(result, result.normalized_title);
-            }
+            titleToData[newTitle] = result;
 
-            currRow += 1;
+            // currRow += 1;
             // printProgress(currRow);
           }
 
+          titleToDateFreq = tempTitleToDateFreq;
+
+          for (const title of Object.keys(titleToDateFreq)) {
+            const result = titleToData[title];
+            logUserStats(result, title);
+          }
+
           console.log("✅ CSV processing done.");
+
+          // console.log(titleToDateFreq["Full House"].titleFrequency);
 
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
           stats.printUserStats(userStats);
+
+          for (const title of Object.keys(titleToData)) {
+            console.log(
+              `${title}: ${tempTitleToDateFreq[title].titleFrequency} | ${userStats.watchTimeByTitle[title].minutes} | ${titleToData[title].episode_run_time}`,
+            );
+          }
 
           resolve({ titleList, dateList });
         } catch (error) {
@@ -428,6 +441,7 @@ function parseCSV() {
 // ========================================
 import express from "express";
 import cors from "cors";
+import { title } from "process";
 const app = express();
 const PORT = process.env.PORT || 3001;
 

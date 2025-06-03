@@ -12,27 +12,24 @@ export async function logToFile(title, data) {
   fs.appendFile(filePath, line, "utf8");
 }
 
-export function updateTitleToDateFreq(result, originalTitle, titleToDateFreq) {
+export function updateTitleToDateFreq(currTitle, newTitle, currDict, tempDict) {
   // Add entry for the new title
-  const newTitle = result.normalized_title;
-  if (!titleToDateFreq[newTitle]) {
-    titleToDateFreq[newTitle] = {
+  if (!tempDict[newTitle]) {
+    tempDict[newTitle] = {
       datesWatched: [],
       titleFrequency: 0,
     };
   }
 
-  const newDict = titleToDateFreq[newTitle];
-  const oldDict = titleToDateFreq[originalTitle];
-
   // Add originalTitle data to newTitle entry
-  if (titleToDateFreq[originalTitle]) {
-    newDict.datesWatched = newDict.datesWatched.concat(oldDict.datesWatched);
-    newDict.titleFrequency += oldDict.titleFrequency;
+  if (currDict[currTitle]) {
+    tempDict[newTitle].datesWatched = tempDict[newTitle].datesWatched.concat(
+      currDict[currTitle].datesWatched,
+    );
+    tempDict[newTitle].titleFrequency += currDict[currTitle].titleFrequency;
   }
 
-  delete titleToDateFreq[originalTitle];
-  return titleToDateFreq;
+  return tempDict;
 }
 
 /**
