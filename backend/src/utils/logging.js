@@ -292,8 +292,6 @@ export function getMostBingedShow(userStats) {
 
   const dates = userStats.mostBingedShow.dates_binged;
 
-  // helper.print(`${userStats.mostBingedShow}: ${dates}`);
-
   if (dates.length > 0) {
     const startBinge = dates[0].toDateString();
     const endBinge = dates[dates.length - 1].toDateString();
@@ -408,7 +406,4 @@ export function logMissedTitles(userStats, title) {
 export function getMissedTitles(userStats) {
   console.log(`Missed: ${userStats.missedTitles.count}`);
   console.log(userStats.missedTitles.titlesArr);
-  // for (const title in userStats.missedTitles.titlesArr) {
-  //   console.log(title);
-  // }
 }

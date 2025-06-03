@@ -17,8 +17,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-// const filePath = "./data/ViewingActivity.csv";
-const filePath = "./data/big.csv";
+const filePath = "./data/ViewingActivity.csv";
+// const filePath = "./data/big.csv";
 
 // const filePath = "./data/tests/Test01_Empty.csv";
 // const filePath = "./data/tests/Test02_WrongTitles.csv";
@@ -199,7 +199,7 @@ async function getData(normalizedTitle) {
   // 1
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
-    console.log("Method 1: EXIST");
+    // console.log("Method 1: EXIST");
     return result;
   }
 
@@ -211,7 +211,7 @@ async function getData(normalizedTitle) {
   searchTerm = searchTerm.substring(0, index).trim();
   result = await db.getCachedResult(searchTerm);
   if (result) {
-    console.log("Method 2: AND SWAP");
+    // console.log("Method 2: AND SWAP");
     return result;
   }
 
@@ -224,8 +224,7 @@ async function getData(normalizedTitle) {
       const searchTerm = titleChunks.join("");
       result = await db.getBestTitleMatch(searchTerm);
       if (result) {
-        // userStats.numUniqueTitlesWatched.total -= 1;
-        console.log("Method 3: TITLE SIMILARITY");
+        // console.log("Method 3: TITLE SIMILARITY");
         return result;
       }
       titleChunks.pop();
@@ -234,7 +233,6 @@ async function getData(normalizedTitle) {
 
   let match = await getTitleFromTMDB(normalizedTitle);
   if (match) {
-    // helper.print(`Entry Point: ${normalizedTitle}`);
     if (match.media_type == "tv") {
       result = {
         normalized_title: match.name || null,
@@ -268,12 +266,10 @@ async function getData(normalizedTitle) {
     }
     // await db.cacheResult(result);
     await new Promise((r) => setTimeout(r, 300));
-    console.log("Method 4: API CALL");
+    // console.log("Method 4: API CALL");
 
-    // helper.print(`Exit Point: ${result.normalized_title} || ${result.tmdb_id}`);
     return result;
   } else {
-    // userStats.numUniqueTitlesWatched.total -= 1;
     stats.logMissedTitles(userStats, normalizedTitle);
   }
 
@@ -293,6 +289,7 @@ function logUserStats(result, normalizedTitle) {
     stats.logTopGenres(userStats, result.genres);
   }
 
+  stats.logUniqueTitlesWatched(userStats);
   stats.logUniqueShowsAndMovies(userStats, mediaType);
   stats.logWatchTime(userStats, normalizedTitle, mediaType, timeWatched);
   stats.logTopWatchedTitles(userStats);
@@ -316,9 +313,9 @@ function logUserStats(result, normalizedTitle) {
   );
 }
 
-// function printProgress(currRow) {
-//   console.log(`${currRow} / ${userStats.numUniqueTitlesWatched.total}`);
-// }
+function printProgress(currRow) {
+  console.log(`${currRow} / ${Object.keys(titleToDateFreq).length}`);
+}
 
 /**
  * Parses users NetflixViewingActivity CSV file.
@@ -368,7 +365,7 @@ function parseCSV() {
                 datesWatched: [],
                 titleFrequency: 0,
               };
-              stats.logUniqueTitlesWatched(userStats);
+              // stats.logUniqueTitlesWatched(userStats);
             }
             titleToDateFreq[title].titleFrequency += 1;
             titleToDateFreq[title].datesWatched.push(date);
@@ -388,7 +385,6 @@ function parseCSV() {
 
             // Handle error from API
             if (!result) {
-              // update total title count
               continue;
             }
 
@@ -400,35 +396,27 @@ function parseCSV() {
               tempTitleToDateFreq,
             );
 
-            await helper.logToFile(title, result);
-
             titleToData[newTitle] = result;
 
-            // currRow += 1;
-            // printProgress(currRow);
+            currRow += 1;
+            printProgress(currRow);
           }
 
           titleToDateFreq = tempTitleToDateFreq;
 
           for (const title of Object.keys(titleToDateFreq)) {
             const result = titleToData[title];
+
+            await helper.logToFile(title, result);
             logUserStats(result, title);
           }
 
           console.log("✅ CSV processing done.");
 
-          // console.log(titleToDateFreq["Full House"].titleFrequency);
-
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
           stats.printUserStats(userStats);
-
-          for (const title of Object.keys(titleToData)) {
-            console.log(
-              `${title}: ${tempTitleToDateFreq[title].titleFrequency} | ${userStats.watchTimeByTitle[title].minutes} | ${titleToData[title].episode_run_time}`,
-            );
-          }
 
           resolve({ titleList, dateList });
         } catch (error) {
