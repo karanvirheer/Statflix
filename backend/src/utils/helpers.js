@@ -7,7 +7,7 @@ import fs from "fs/promises";
  */
 
 export function createEmptyUserStats() {
-  userStats = {
+  const userStats = {
     // dict
     // EVERY Genre the user has watched tallied up
     // { "Mystery": 30, "Horror": 20, ...}
