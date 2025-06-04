@@ -21,12 +21,6 @@ dotenv.config();
  * ==============================
  */
 
-// await main();
-//
-// async function main() {
-//   await parseCSV("./data/sample.csv");
-// }
-
 async function getTitleFromTMDB(normalizedTitle) {
   let topCandidates = [];
   let result = null;
@@ -328,8 +322,8 @@ const PORT = process.env.PORT || 3001;
 
 const corsOptions = {
   origin: [
+    "https://statflix-lake.vercel.app/",
     "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // Vercel Preview
-    "https://statflix.vercel.app", // your prod custom domain (if used)
   ],
   methods: ["GET", "POST"],
   credentials: false,
