@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: statflix-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: API_KEY
+        value: eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3Zjg0ZDdiNDJmMzI3NGY4MjZiYzAzOGFhNGI5OGU3NCIsIm5iZiI6MTc0MjM1ODc4OS4zODUsInN1YiI6IjY3ZGE0OTA1NTk0Y2FjMWVlNzZjYTNhZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.qmedMY38bKi3S3B5WhzdH_-iILfVv3QeepEpy0yxwck
