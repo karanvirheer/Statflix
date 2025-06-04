@@ -1,21 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 function StatsPage() {
-  const [statsText, setStatsText] = useState("");
+  const location = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      const res = await fetch(
-        process.env.REACT_APP_API_BASE_URL + "/api/stats",
-      );
-      const data = await res.text(); // get plain text
-      setStatsText(data);
-    };
-
-    fetchStats();
-  }, []);
+  const [statsText] = useState(
+    location.state?.statsText || "⚠️ No stats found.",
+  );
 
   return (
     <div

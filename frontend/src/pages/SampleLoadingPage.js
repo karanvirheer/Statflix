@@ -12,13 +12,20 @@ function SampleLoadingPage() {
 
   useEffect(() => {
     const fetchSample = async () => {
-      if (hasFetched.current) return; // ⛔ prevent double-call
+      if (hasFetched.current) return;
       hasFetched.current = true;
 
       try {
+        // 1. Trigger backend CSV processing
         const res = await fetch(`${API_BASE_URL}/api/sample`);
         if (!res.ok) throw new Error("Failed to load sample");
-        setSampleLoaded(true);
+
+        // 2. Now fetch the result from /api/stats
+        const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
+        const statsText = await statsRes.text();
+
+        // 3. Navigate to StatsPage with result passed via React router state
+        navigate("/stats", { state: { statsText } });
       } catch (err) {
         console.error(err);
         setMessage("❌ Failed to load sample data.");
@@ -26,7 +33,7 @@ function SampleLoadingPage() {
     };
 
     fetchSample();
-  }, []); // ✅ empty deps: run only on first mount
+  }, []);
 
   useEffect(() => {
     // if (!sampleLoaded) return;
