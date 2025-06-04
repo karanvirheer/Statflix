@@ -367,12 +367,8 @@ app.get("/api/stats", (req, res) => {
 
 app.post("/api/reset", (req, res) => {
   resetProgress();
-  helper.resetCapturedOutput();
-  titleToDateFreq = {};
-  titleToData = {};
-  resetUserStats();
-  console.log("reset");
-  res.json({ message: "State reset" });
+  req.app.locals.statsOutput = null;
+  res.json({ message: "Reset complete" });
 });
 
 app.listen(process.env.PORT, () => {
