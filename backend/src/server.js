@@ -17,8 +17,8 @@ dotenv.config();
  */
 
 // CSV should be in same folder
-const filePath = "./data/ViewingActivity.csv";
-// const filePath = "./data/big.csv";
+// const filePath = "./data/ViewingActivity.csv";
+const filePath = "./data/big.csv";
 
 // const filePath = "./data/tests/Test01_Empty.csv";
 // const filePath = "./data/tests/Test02_WrongTitles.csv";
@@ -55,6 +55,7 @@ const userStats = {
   // {
   //  title: {
   //    mediaType: "",
+  //    posterPath: "",
   //    minutes: 0,
   //  },
   //  ...
@@ -65,6 +66,7 @@ const userStats = {
   // {
   //  title: {
   //    mediaType: "",
+  //    posterPath: "",
   //    minutes: 0,
   //  },
   //  ...
@@ -74,6 +76,7 @@ const userStats = {
   // dict
   mostBingedShow: {
     title: "",
+    posterPath: "",
     eps_binged: 0,
     dates_binged: [],
   },
@@ -81,12 +84,14 @@ const userStats = {
   // dict
   mostWatchedTitle: {
     title: "",
+    posterPath: "",
     minutes: 0,
   },
 
   // dict
   oldestWatchedShow: {
     title: "",
+    posterPath: "",
     dateObject: null,
     date: "",
   },
@@ -94,6 +99,7 @@ const userStats = {
   // dict
   oldestWatchedMovie: {
     title: "",
+    posterPath: "",
     dateObject: null,
     date: "",
   },
@@ -276,11 +282,8 @@ async function getData(normalizedTitle) {
   return result;
 }
 
-function logUserStats(result, normalizedTitle) {
-  const titleFrequency = helper.getTitleWatchFrequency(
-    titleToDateFreq,
-    normalizedTitle,
-  );
+function logUserStats(result, title) {
+  const titleFrequency = helper.getTitleWatchFrequency(titleToDateFreq, title);
   const runtime = result?.runtime || result?.episode_run_time || 45;
   const timeWatched = runtime * titleFrequency;
   const mediaType = result.media_type;
@@ -291,17 +294,17 @@ function logUserStats(result, normalizedTitle) {
 
   stats.logUniqueTitlesWatched(userStats);
   stats.logUniqueShowsAndMovies(userStats, mediaType);
-  stats.logWatchTime(userStats, normalizedTitle, mediaType, timeWatched);
+  stats.logWatchTime(userStats, title, mediaType, timeWatched, titleToData);
   stats.logTopWatchedTitles(userStats);
-  stats.logMostWatchedTitle(userStats);
-  stats.logMostBingedShow(userStats, titleToDateFreq);
+  stats.logMostWatchedTitle(userStats, titleToData);
+  stats.logMostBingedShow(userStats, titleToDateFreq, titleToData);
 
   if (mediaType == 0) {
     stats.logNumShowsCompleted(
       titleToDateFreq,
       userStats,
       result.number_of_episodes,
-      normalizedTitle,
+      title,
     );
   }
 
@@ -309,7 +312,8 @@ function logUserStats(result, normalizedTitle) {
     userStats,
     mediaType,
     result.release_date || result.first_air_date,
-    normalizedTitle,
+    title,
+    titleToData,
   );
 }
 
@@ -381,12 +385,13 @@ function parseCSV() {
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
-            const newTitle = result.normalized_title;
 
             // Handle error from API
             if (!result) {
               continue;
             }
+
+            const newTitle = result.normalized_title;
 
             // Combine same title data
             tempTitleToDateFreq = helper.updateTitleToDateFreq(
@@ -437,32 +442,38 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/api/stats", (req, res) => {
-  const mostWatched = Object.entries(userStats.watchTimeByTitle).sort(
-    (a, b) => b[1].minutes - a[1].minutes,
-  )[0];
-
-  const top5Titles = Object.entries(userStats.watchTimeByTitle)
-    .sort((a, b) => b[1].minutes - a[1].minutes)
-    .slice(0, 5)
-    .map(([key, val]) => [val.original, val.minutes]);
+  // const mostWatched = Object.entries(userStats.watchTimeByTitle).sort(
+  //   (a, b) => b[1].minutes - a[1].minutes,
+  // )[0];
+  //
+  // const top5Titles = Object.entries(userStats.watchTimeByTitle)
+  //   .sort((a, b) => b[1].minutes - a[1].minutes)
+  //   .slice(0, 5)
+  //   .map(([key, val]) => [val.original, val.minutes]);
 
   res.json({
     topGenres: userStats.topGenres,
-    uniqueTitles: userStats.numUniqueTitlesWatched.size,
+    numTotalUniqueTitlesWatched: userStats.numUniqueTitlesWatched.total,
+    numUniqueTVShowsWatched: userStats.numUniqueTitlesWatched.tvShows,
+    numUniqueMoviesWatched: userStats.numUniqueTitlesWatched.movies,
     totalWatchTimeMinutes: userStats.totalWatchTime,
     totalWatchTimeHours: userStats.totalWatchTime / 60,
-    topTitles: top5Titles,
-    mostWatched: {
-      title: mostWatched?.[1].original || "",
-      minutes: mostWatched?.[1].minutes || 0,
-    },
-    mostBinged: {
-      title:
-        userStats.watchTimeByTitle[userStats.mostBingedShow]?.original ||
-        userStats.mostBingedShow ||
-        "N/A",
-      streak: userStats.longest_binge_streak || 0,
-    },
+    topWatchedTitles: userStats.topWatchedTitles,
+    mostBingedShow: userStats.mostBingedShow,
+    mostWatchedTitle: userStats.mostWatchedTitle,
+    oldestWatchedShow: userStats.oldestWatchedShow,
+    oldestWatchedMovie: userStats.oldestWatchedMovie,
+    // mostWatched: {
+    //   title: mostWatched?.[1].original || "",
+    //   minutes: mostWatched?.[1].minutes || 0,
+    // },
+    // mostBinged: {
+    //   title:
+    //     userStats.watchTimeByTitle[userStats.mostBingedShow]?.original ||
+    //     userStats.mostBingedShow ||
+    //     "N/A",
+    //   streak: userStats.longest_binge_streak || 0,
+    // },
   });
 });
 
