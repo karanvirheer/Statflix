@@ -1,12 +1,16 @@
-import multer from "multer";
-const upload = multer({ dest: "uploads/" });
 import fs from "fs";
+import path from "path";
 import csv from "csv-parser";
 import dotenv from "dotenv";
 import * as api from "./api/tmdb.js";
 import * as helper from "./utils/helpers.js";
 import * as db from "./db/db.js";
 import * as stats from "./utils/logging.js";
+import {
+  updateProgress,
+  resetProgress,
+  progressState,
+} from "./state/progress.js";
 
 dotenv.config();
 
@@ -15,19 +19,6 @@ dotenv.config();
  *           GLOBALS
  * ==============================
  */
-
-// CSV should be in same folder
-// const filePath = "./data/ViewingActivity.csv";
-const filePath = "./data/big.csv";
-
-// const filePath = "./data/tests/Test01_Empty.csv";
-// const filePath = "./data/tests/Test02_WrongTitles.csv";
-// const filePath = "./data/tests/Test03_ScoringTitles.csv";
-// const filePath = "./data/tests/Test04_1000_Titles_TVShowsOnly.csv";
-// const filePath = "./data/tests/Test05_MultipleUnique.csv";
-// const filePath = "./data/tests/Test06_SavingHope_Only.csv";
-// const filePath = "./data/tests/Test07_SavingHope_FullHouse.csv";
-// const filePath = "./data/tests/Test08_WatchTime_Test.csv";
 
 // User Statistics Cache
 const userStats = {
@@ -126,10 +117,7 @@ let titleToData = {};
 await main();
 
 async function main() {
-  console.log("!!!!!!!!!! STARTING !!!!!!!!!!!!!");
-  // let result = await getTitleFromTMDB("Dark");
-  // console.log(result);
-  await parseCSV();
+  await parseCSV("./data/sample.csv");
 }
 
 async function getTitleFromTMDB(normalizedTitle) {
@@ -205,7 +193,7 @@ async function getData(normalizedTitle) {
   // 1
   result = await db.getCachedResult(normalizedTitle);
   if (result) {
-    // console.log("Method 1: EXIST");
+    console.log("Method 1: EXIST");
     return result;
   }
 
@@ -217,7 +205,7 @@ async function getData(normalizedTitle) {
   searchTerm = searchTerm.substring(0, index).trim();
   result = await db.getCachedResult(searchTerm);
   if (result) {
-    // console.log("Method 2: AND SWAP");
+    console.log("Method 2: AND SWAP");
     return result;
   }
 
@@ -230,7 +218,7 @@ async function getData(normalizedTitle) {
       const searchTerm = titleChunks.join("");
       result = await db.getBestTitleMatch(searchTerm);
       if (result) {
-        // console.log("Method 3: TITLE SIMILARITY");
+        console.log("Method 3: TITLE SIMILARITY");
         return result;
       }
       titleChunks.pop();
@@ -271,8 +259,9 @@ async function getData(normalizedTitle) {
       };
     }
     // await db.cacheResult(result);
+    // console.log("========= CACHED RESULT =========");
     await new Promise((r) => setTimeout(r, 300));
-    // console.log("Method 4: API CALL");
+    console.log("Method 4: API CALL");
 
     return result;
   } else {
@@ -318,7 +307,9 @@ function logUserStats(result, title) {
 }
 
 function printProgress(currRow) {
-  console.log(`${currRow} / ${Object.keys(titleToDateFreq).length}`);
+  const total = Object.keys(titleToDateFreq).length;
+  updateProgress(currRow, total);
+  console.log(`${currRow} / ${total}`);
 }
 
 /**
@@ -331,7 +322,7 @@ function printProgress(currRow) {
  *
  * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
  */
-function parseCSV() {
+function parseCSV(filePath) {
   const titleList = [];
   const dateList = [];
 
@@ -369,7 +360,6 @@ function parseCSV() {
                 datesWatched: [],
                 titleFrequency: 0,
               };
-              // stats.logUniqueTitlesWatched(userStats);
             }
             titleToDateFreq[title].titleFrequency += 1;
             titleToDateFreq[title].datesWatched.push(date);
@@ -411,8 +401,6 @@ function parseCSV() {
 
           for (const title of Object.keys(titleToDateFreq)) {
             const result = titleToData[title];
-
-            await helper.logToFile(title, result);
             logUserStats(result, title);
           }
 
@@ -421,7 +409,9 @@ function parseCSV() {
           // =========================
           // STATISTICS FUNCTION CALLS
           // =========================
+          helper.enablePrintCapture();
           stats.printUserStats(userStats);
+          helper.disablePrintCapture();
 
           resolve({ titleList, dateList });
         } catch (error) {
@@ -437,25 +427,43 @@ import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+const corsOptions = {
+  origin: "http://localhost:3000", // Your frontend dev server
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
-app.get("/api/stats", (req, res) => {
-  res.json({
-    topGenres: userStats.topGenres,
-    numTotalUniqueTitlesWatched: userStats.numUniqueTitlesWatched.total,
-    numUniqueTVShowsWatched: userStats.numUniqueTitlesWatched.tvShows,
-    numUniqueMoviesWatched: userStats.numUniqueTitlesWatched.movies,
-    totalWatchTimeMinutes: userStats.totalWatchTime,
-    totalWatchTimeHours: userStats.totalWatchTime / 60,
-    topWatchedTitles: userStats.topWatchedTitles,
-    mostBingedShow: userStats.mostBingedShow,
-    mostWatchedTitle: userStats.mostWatchedTitle,
-    oldestWatchedShow: userStats.oldestWatchedShow,
-    oldestWatchedMovie: userStats.oldestWatchedMovie,
-  });
+// server.js
+app.get("/api/sample", async (req, res) => {
+  updateProgress(0, 1); // Reset to avoid stale progress
+  const filePath = path.resolve("./data", "sample.csv");
+  try {
+    await parseCSV(filePath);
+    res.status(200).json({ message: "Sample loaded" });
+  } catch (err) {
+    console.error("❌ Sample handler error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-app.listen(PORT, () => {
+app.get("/api/progress", (req, res) => {
+  res.json(progressState);
+});
+
+app.get("/api/stats", (req, res) => {
+  res.type("text/plain").send(helper.getCapturedOutput());
+});
+
+app.post("/api/reset", (req, res) => {
+  resetProgress();
+  helper.resetCapturedOutput();
+  titleToDateFreq = {};
+  titleToData = {};
+  res.json({ message: "State reset" });
+});
+
+app.listen(process.env.PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

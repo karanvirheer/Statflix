@@ -1,0 +1,4 @@
+{
+  "ignore": ["data/sample.csv", "logs", "output", "*.log"],
+  "watch": ["src"]
+}

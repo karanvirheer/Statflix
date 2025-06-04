@@ -32,18 +32,58 @@ export function updateTitleToDateFreq(currTitle, newTitle, currDict, tempDict) {
   return tempDict;
 }
 
-/**
- * Helper Function
- *
- * Formatted print of an item.
- *
- * @param {<String>} item - Item to be printed
- * @returns {null} Prints to the console
- */
+// /**
+//  * Helper Function
+//  *
+//  * Formatted print of an item.
+//  *
+//  * @param {<String>} item - Item to be printed
+//  * @returns {null} Prints to the console
+//  */
+// export function print(item) {
+//   console.log("================================");
+//   console.log(`         ${item}         `);
+//   console.log("================================");
+// }
+
+export let outputBuffer = "";
+let captureEnabled = false;
+
+export function enablePrintCapture() {
+  outputBuffer = "";
+  captureEnabled = true;
+
+  // Monkey-patch console.log
+  if (!console._isCaptured) {
+    const originalLog = console.log;
+    console.log = (...args) => {
+      const line = args.join(" ") + "\n";
+      if (captureEnabled) outputBuffer += line;
+      originalLog(...args);
+    };
+    console._isCaptured = true;
+  }
+}
+
+export function disablePrintCapture() {
+  captureEnabled = false;
+}
+
+export function getCapturedOutput() {
+  return outputBuffer;
+}
+
+export function resetCapturedOutput() {
+  outputBuffer = "";
+}
+
 export function print(item) {
-  console.log("================================");
-  console.log(`         ${item}         `);
-  console.log("================================");
+  const line = "================================";
+  const title = `         ${item}         `;
+
+  console.log(line);
+  console.log(title);
+  console.log(line);
 }
 
 /**
