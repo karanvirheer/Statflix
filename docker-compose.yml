@@ -28,10 +28,10 @@ services:
     volumes:
       - ./backend:/usr/src/app
     environment:
-      - NODE_ENV=development
       - API_KEY=${API_KEY}
       - PORT=${PORT}
       - API_BASE_URL=${API_BASE_URL}
+      - DB_TYPE=sqlite
     command: sh -c "npm install && nodemon server.js"
 
 networks:
