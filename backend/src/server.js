@@ -264,6 +264,7 @@ function parseCSV(filePath, titleToDateFreq, titleToData) {
       .on("end", async () => {
         let currRow = 0;
         let tempTitleToDateFreq = {};
+        let tempTitleToData = {};
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             let result = await getData(title);
@@ -278,13 +279,19 @@ function parseCSV(filePath, titleToDateFreq, titleToData) {
               tempTitleToDateFreq,
             );
 
-            titleToData[newTitle] = result;
+            tempTitleToData[newTitle] = result;
             currRow += 1;
             printProgress(currRow, title, Object.keys(titleToDateFreq).length);
           }
 
           // Replace outer reference
+          //
+          Object.keys(titleToDateFreq).forEach(
+            (key) => delete titleToDateFreq[key],
+          );
           Object.assign(titleToDateFreq, tempTitleToDateFreq);
+
+          Object.assign(titleToData, tempTitleToData);
 
           console.log("✅ CSV processing done.");
           resolve();
