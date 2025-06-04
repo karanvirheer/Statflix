@@ -6,6 +6,93 @@ import fs from "fs/promises";
  * ==============================
  */
 
+export function createEmptyUserStats() {
+  userStats = {
+    // dict
+    // EVERY Genre the user has watched tallied up
+    // { "Mystery": 30, "Horror": 20, ...}
+    genres: {},
+
+    // array
+    // Top 3 Genres of User
+    // [ [ 'Drama', 175 ], [ 'Comedy', 129 ], [ 'Romance', 64 ] ]
+    topGenres: [],
+
+    // int
+    numUniqueTitlesWatched: {
+      total: 0,
+      tvShows: 0,
+      movies: 0,
+    },
+
+    // int
+    totalWatchTime: 0,
+
+    // dict
+    // {
+    //  title: {
+    //    mediaType: "",
+    //    posterPath: "",
+    //    minutes: 0,
+    //  },
+    //  ...
+    // }
+    watchTimeByTitle: {},
+
+    // dict
+    // {
+    //  title: {
+    //    mediaType: "",
+    //    posterPath: "",
+    //    minutes: 0,
+    //  },
+    //  ...
+    // }
+    topWatchedTitles: {},
+
+    // dict
+    mostBingedShow: {
+      title: "",
+      posterPath: "",
+      eps_binged: 0,
+      dates_binged: [],
+    },
+
+    // dict
+    mostWatchedTitle: {
+      title: "",
+      posterPath: "",
+      minutes: 0,
+    },
+
+    // dict
+    oldestWatchedShow: {
+      title: "",
+      posterPath: "",
+      dateObject: null,
+      date: "",
+    },
+
+    // dict
+    oldestWatchedMovie: {
+      title: "",
+      posterPath: "",
+      dateObject: null,
+      date: "",
+    },
+
+    // dict
+    // { int, ... string (title) }
+    showsCompleted: [0],
+
+    missedTitles: {
+      count: 0,
+      titlesArr: [],
+    },
+  };
+  return userStats;
+}
+
 export async function logToFile(title, data) {
   const filePath = "output.log";
   const line = JSON.stringify({ [title]: data }) + "\n";

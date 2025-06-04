@@ -289,7 +289,7 @@ export function logMostBingedShow(userStats, titleToDateFreq, titleToData) {
   }
   userStats.mostBingedShow = {
     title: mostBingedShow,
-    posterPath: titleToData[mostBingedShow].poster_path,
+    posterPath: titleToData[mostBingedShow]?.poster_path || "",
     eps_binged: longestBingeStreak,
     dates_binged: mostBingedDates,
   };
