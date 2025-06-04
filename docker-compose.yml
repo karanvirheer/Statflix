@@ -32,32 +32,8 @@ services:
       - API_KEY=${API_KEY}
       - PORT=${PORT}
       - API_BASE_URL=${API_BASE_URL}
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=tmdb
-    depends_on:
-      - db
     command: sh -c "npm install && nodemon server.js"
-
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_DB: tmdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    networks:
-      - statflix-network
-    volumes:
-      - pgdata:/var/lib/postgresql/data
 
 networks:
   statflix-network:
     driver: bridge
-
-volumes:
-  pgdata:

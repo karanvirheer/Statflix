@@ -10,7 +10,7 @@ function App() {
     <Router>
       <LayoutWithBackground>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage key={Date.now()} />} />
           <Route path="/sample-loading" element={<SampleLoadingPage />} />
           <Route path="/stats" element={<StatsPage />} />
         </Routes>

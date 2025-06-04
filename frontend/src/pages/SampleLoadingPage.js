@@ -85,11 +85,34 @@ function SampleLoadingPage() {
       >
         <h1>{message}</h1>
         <p>{`${progress.current} / ${progress.total}`}</p>
+        <p>{`${progress.title}`}</p>
         <progress
           value={progress.current}
           max={progress.total}
           style={{ width: "300px", height: "20px" }}
         />
+
+        <div
+          style={{
+            marginTop: "30px",
+            backgroundColor: "#222",
+            padding: "15px 20px",
+            borderRadius: "10px",
+            color: "#f1f1f1",
+            fontSize: "0.95rem",
+            lineHeight: "1.5",
+            maxWidth: "600px",
+            textAlign: "left",
+            boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+          }}
+        >
+          <strong>What’s happening?</strong>
+          <p>
+            Statflix is analyzing your streaming history: matching titles with
+            TMDb using fuzzy logic, calculating genres, watch time, and binge
+            streaks — all based on the sample data.
+          </p>
+        </div>
       </div>
     </div>
   );

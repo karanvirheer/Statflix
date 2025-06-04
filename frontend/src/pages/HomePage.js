@@ -136,7 +136,7 @@ function HomePage() {
             <div style={{ margin: "15px 0", fontWeight: "bold" }}>OR</div>
 
             <button
-              onClick={() => navigate("/sample-loading")}
+              onClick={() => navigate("/sample-loading", { replace: true })}
               style={{
                 background: "#E50914",
                 color: "white",

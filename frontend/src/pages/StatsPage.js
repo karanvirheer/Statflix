@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function StatsPage() {
   const [statsText, setStatsText] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -27,6 +29,7 @@ function StatsPage() {
         justifyContent: "center",
         alignItems: "center",
         overflow: "hidden",
+        padding: "20px",
       }}
     >
       <div
@@ -34,9 +37,9 @@ function StatsPage() {
           position: "relative",
           zIndex: 1,
           maxWidth: "800px",
-          width: "90%",
+          width: "100%",
           backgroundColor: "rgba(0, 0, 0, 0.85)",
-          padding: "40px",
+          padding: "30px 20px",
           borderRadius: "15px",
           color: "#fff",
           display: "flex",
@@ -47,13 +50,54 @@ function StatsPage() {
       >
         <h1
           style={{
-            textAlign: "left",
-            color: "#E50914",
-            marginBottom: "20px",
+            textAlign: "center",
+            color: "#FFF",
+            marginBottom: "15px",
+            fontSize: "1.8rem",
           }}
         >
           📊 StatFlix Summary
         </h1>
+
+        {/* 🛠️ Under Construction Notice */}
+        <div
+          style={{
+            backgroundColor: "#333",
+            borderLeft: "6px solid #E50914",
+            padding: "12px 16px",
+            marginBottom: "20px",
+            borderRadius: "6px",
+            width: "100%",
+            fontSize: "0.95rem",
+            lineHeight: "1.5",
+          }}
+        >
+          ⚠️ This section is still under construction. Stats are accurate but
+          not yet styled.
+        </div>
+
+        {/* 🏠 Home Button */}
+        <button
+          onClick={() => navigate("/")}
+          style={{
+            background: "#E50914",
+            color: "white",
+            padding: "10px 24px",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "1rem",
+            cursor: "pointer",
+            fontWeight: "bold",
+            marginBottom: "20px",
+            transition: "background 0.2s ease",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#c40811")}
+          onMouseLeave={(e) => (e.target.style.background = "#E50914")}
+        >
+          ← Return Home
+        </button>
+
+        {/* 📊 Stats Text */}
         <pre
           style={{
             backgroundColor: "#1a1a1a",
@@ -61,16 +105,17 @@ function StatsPage() {
             padding: "20px",
             borderRadius: "10px",
             fontFamily: "monospace",
-            whiteSpace: "pre-wrap", // ✅ keeps spacing + wraps long lines
+            whiteSpace: "pre-wrap",
             lineHeight: "1.5",
-            overflowY: "auto", // ✅ enables vertical scroll
-            maxHeight: "80vh", // ✅ limits height to 80% of viewport
-            fontSize: "0.95rem",
+            overflowY: "auto",
+            maxHeight: "70vh",
+            width: "100%",
             boxShadow: "0 0 10px rgba(0,0,0,0.4)",
+            fontSize: "0.9rem",
           }}
         >
           {statsText}
-        </pre>{" "}
+        </pre>
       </div>
     </div>
   );

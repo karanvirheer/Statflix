@@ -4,7 +4,8 @@ import csv from "csv-parser";
 import dotenv from "dotenv";
 import * as api from "./api/tmdb.js";
 import * as helper from "./utils/helpers.js";
-import * as db from "./db/db.js";
+// import * as db from "./db/db.js";
+import * as db from "./db/sqlite.js";
 import * as stats from "./utils/logging.js";
 import {
   updateProgress,
@@ -21,7 +22,7 @@ dotenv.config();
  */
 
 // User Statistics Cache
-const userStats = {
+let userStats = {
   // dict
   // EVERY Genre the user has watched tallied up
   // { "Mystery": 30, "Horror": 20, ...}
@@ -114,10 +115,96 @@ let titleToData = {};
  * ==============================
  */
 
-await main();
+// await main();
+//
+// async function main() {
+//   await parseCSV("./data/sample.csv");
+// }
 
-async function main() {
-  await parseCSV("./data/sample.csv");
+function resetUserStats() {
+  userStats = {
+    // dict
+    // EVERY Genre the user has watched tallied up
+    // { "Mystery": 30, "Horror": 20, ...}
+    genres: {},
+
+    // array
+    // Top 3 Genres of User
+    // [ [ 'Drama', 175 ], [ 'Comedy', 129 ], [ 'Romance', 64 ] ]
+    topGenres: [],
+
+    // int
+    numUniqueTitlesWatched: {
+      total: 0,
+      tvShows: 0,
+      movies: 0,
+    },
+
+    // int
+    totalWatchTime: 0,
+
+    // dict
+    // {
+    //  title: {
+    //    mediaType: "",
+    //    posterPath: "",
+    //    minutes: 0,
+    //  },
+    //  ...
+    // }
+    watchTimeByTitle: {},
+
+    // dict
+    // {
+    //  title: {
+    //    mediaType: "",
+    //    posterPath: "",
+    //    minutes: 0,
+    //  },
+    //  ...
+    // }
+    topWatchedTitles: {},
+
+    // dict
+    mostBingedShow: {
+      title: "",
+      posterPath: "",
+      eps_binged: 0,
+      dates_binged: [],
+    },
+
+    // dict
+    mostWatchedTitle: {
+      title: "",
+      posterPath: "",
+      minutes: 0,
+    },
+
+    // dict
+    oldestWatchedShow: {
+      title: "",
+      posterPath: "",
+      dateObject: null,
+      date: "",
+    },
+
+    // dict
+    oldestWatchedMovie: {
+      title: "",
+      posterPath: "",
+      dateObject: null,
+      date: "",
+    },
+
+    // dict
+    // { int, ... string (title) }
+    showsCompleted: [0],
+
+    missedTitles: {
+      count: 0,
+      titlesArr: [],
+    },
+  };
 }
 
 async function getTitleFromTMDB(normalizedTitle) {
@@ -191,9 +278,9 @@ async function getData(normalizedTitle) {
   let result = {};
 
   // 1
-  result = await db.getCachedResult(normalizedTitle);
+  result = db.getCachedResult(normalizedTitle);
   if (result) {
-    console.log("Method 1: EXIST");
+    // console.log("Method 1: EXIST");
     return result;
   }
 
@@ -203,9 +290,9 @@ async function getData(normalizedTitle) {
   let searchTerm = normalizedTitle.replaceAll("&", "and");
   const index = searchTerm.indexOf("(");
   searchTerm = searchTerm.substring(0, index).trim();
-  result = await db.getCachedResult(searchTerm);
+  result = db.getCachedResult(searchTerm);
   if (result) {
-    console.log("Method 2: AND SWAP");
+    // console.log("Method 2: AND SWAP");
     return result;
   }
 
@@ -218,7 +305,7 @@ async function getData(normalizedTitle) {
       const searchTerm = titleChunks.join("");
       result = await db.getBestTitleMatch(searchTerm);
       if (result) {
-        console.log("Method 3: TITLE SIMILARITY");
+        // console.log("Method 3: TITLE SIMILARITY");
         return result;
       }
       titleChunks.pop();
@@ -261,7 +348,7 @@ async function getData(normalizedTitle) {
     // await db.cacheResult(result);
     // console.log("========= CACHED RESULT =========");
     await new Promise((r) => setTimeout(r, 300));
-    console.log("Method 4: API CALL");
+    // console.log("Method 4: API CALL");
 
     return result;
   } else {
@@ -306,9 +393,9 @@ function logUserStats(result, title) {
   );
 }
 
-function printProgress(currRow) {
+function printProgress(currRow, title) {
   const total = Object.keys(titleToDateFreq).length;
-  updateProgress(currRow, total);
+  updateProgress(currRow, total, title);
   console.log(`${currRow} / ${total}`);
 }
 
@@ -394,24 +481,12 @@ function parseCSV(filePath) {
             titleToData[newTitle] = result;
 
             currRow += 1;
-            printProgress(currRow);
+            printProgress(currRow, title);
           }
 
           titleToDateFreq = tempTitleToDateFreq;
 
-          for (const title of Object.keys(titleToDateFreq)) {
-            const result = titleToData[title];
-            logUserStats(result, title);
-          }
-
           console.log("✅ CSV processing done.");
-
-          // =========================
-          // STATISTICS FUNCTION CALLS
-          // =========================
-          helper.enablePrintCapture();
-          stats.printUserStats(userStats);
-          helper.disablePrintCapture();
 
           resolve({ titleList, dateList });
         } catch (error) {
@@ -419,6 +494,22 @@ function parseCSV(filePath) {
         }
       });
   });
+}
+
+export async function main(filePath) {
+  await parseCSV(filePath);
+
+  for (const title of Object.keys(titleToDateFreq)) {
+    const result = titleToData[title];
+    logUserStats(result, title);
+  }
+
+  // =========================
+  // STATISTICS FUNCTION CALLS
+  // =========================
+  helper.enablePrintCapture();
+  stats.printUserStats(userStats);
+  helper.disablePrintCapture();
 }
 
 // ========================================
@@ -440,7 +531,7 @@ app.get("/api/sample", async (req, res) => {
   updateProgress(0, 1); // Reset to avoid stale progress
   const filePath = path.resolve("./data", "sample.csv");
   try {
-    await parseCSV(filePath);
+    await main(filePath);
     res.status(200).json({ message: "Sample loaded" });
   } catch (err) {
     console.error("❌ Sample handler error:", err);
@@ -461,6 +552,8 @@ app.post("/api/reset", (req, res) => {
   helper.resetCapturedOutput();
   titleToDateFreq = {};
   titleToData = {};
+  resetUserStats();
+  console.log("reset");
   res.json({ message: "State reset" });
 });
 

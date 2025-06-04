@@ -69,7 +69,11 @@ export function printUserStats(userStats) {
  * @param {string} genreArray - Genres of current title
  */
 export function logTopGenres(userStats, genreArray) {
+  if (typeof genreArray === typeof "hello") {
+    genreArray = JSON.parse(genreArray);
+  }
   for (const genre of genreArray) {
+    console.log(genre.name);
     if (genre.name in userStats.genres) {
       userStats.genres[genre.name] += 1;
     } else {
