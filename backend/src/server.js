@@ -434,7 +434,6 @@ function parseCSV() {
 // ========================================
 import express from "express";
 import cors from "cors";
-import { title } from "process";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -442,15 +441,6 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/api/stats", (req, res) => {
-  // const mostWatched = Object.entries(userStats.watchTimeByTitle).sort(
-  //   (a, b) => b[1].minutes - a[1].minutes,
-  // )[0];
-  //
-  // const top5Titles = Object.entries(userStats.watchTimeByTitle)
-  //   .sort((a, b) => b[1].minutes - a[1].minutes)
-  //   .slice(0, 5)
-  //   .map(([key, val]) => [val.original, val.minutes]);
-
   res.json({
     topGenres: userStats.topGenres,
     numTotalUniqueTitlesWatched: userStats.numUniqueTitlesWatched.total,
@@ -463,17 +453,6 @@ app.get("/api/stats", (req, res) => {
     mostWatchedTitle: userStats.mostWatchedTitle,
     oldestWatchedShow: userStats.oldestWatchedShow,
     oldestWatchedMovie: userStats.oldestWatchedMovie,
-    // mostWatched: {
-    //   title: mostWatched?.[1].original || "",
-    //   minutes: mostWatched?.[1].minutes || 0,
-    // },
-    // mostBinged: {
-    //   title:
-    //     userStats.watchTimeByTitle[userStats.mostBingedShow]?.original ||
-    //     userStats.mostBingedShow ||
-    //     "N/A",
-    //   streak: userStats.longest_binge_streak || 0,
-    // },
   });
 });
 
