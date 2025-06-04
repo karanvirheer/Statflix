@@ -14,6 +14,7 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - HOST=0.0.0.0
+      - API_BASE_URL=${API_BASE_URL}
     command: sh -c "npm install && npm start"
 
   backend:
@@ -30,6 +31,7 @@ services:
       - NODE_ENV=development
       - API_KEY=${API_KEY}
       - PORT=${PORT}
+      - API_BASE_URL=${API_BASE_URL}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=postgres

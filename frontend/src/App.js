@@ -1,17 +1,22 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-import CarouselPage from "./pages/CarouselPage";
+import LayoutWithBackground from "./components/LayoutWithBackground";
+import SampleLoadingPage from "./pages/SampleLoadingPage";
+import StatsPage from "./pages/StatsPage";
 
 function App() {
-    return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/carousel" element={<CarouselPage />} />
-            </Routes>
-        </Router>
-    );
+  return (
+    <Router>
+      <LayoutWithBackground>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/sample-loading" element={<SampleLoadingPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+        </Routes>
+      </LayoutWithBackground>
+    </Router>
+  );
 }
 
 export default App;
