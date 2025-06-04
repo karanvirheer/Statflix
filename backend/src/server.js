@@ -178,31 +178,25 @@ async function getData(normalizedTitle) {
   return result;
 }
 
-export function logUserStats(
-  userStats,
-  result,
-  title,
-  titleToDateFreq,
-  titleToData,
-) {
+function logUserStats(userStats, result, title, titleToDateFreq, titleToData) {
   const titleFrequency = helper.getTitleWatchFrequency(titleToDateFreq, title);
   const runtime = result?.runtime || result?.episode_run_time || 45;
   const timeWatched = runtime * titleFrequency;
   const mediaType = result.media_type;
 
   if (result.genres !== null || result.genres?.length > 0) {
-    logTopGenres(userStats, result.genres);
+    stats.logTopGenres(userStats, result.genres);
   }
 
-  logUniqueTitlesWatched(userStats);
-  logUniqueShowsAndMovies(userStats, mediaType);
-  logWatchTime(userStats, title, mediaType, timeWatched, titleToData);
-  logTopWatchedTitles(userStats);
-  logMostWatchedTitle(userStats, titleToData);
-  logMostBingedShow(userStats, titleToDateFreq, titleToData);
+  stats.logUniqueTitlesWatched(userStats);
+  stats.logUniqueShowsAndMovies(userStats, mediaType);
+  stats.logWatchTime(userStats, title, mediaType, timeWatched, titleToData);
+  stats.logTopWatchedTitles(userStats);
+  stats.logMostWatchedTitle(userStats, titleToData);
+  stats.logMostBingedShow(userStats, titleToDateFreq, titleToData);
 
   if (mediaType == 0) {
-    logNumShowsCompleted(
+    stats.logNumShowsCompleted(
       titleToDateFreq,
       userStats,
       result.number_of_episodes,
@@ -210,7 +204,7 @@ export function logUserStats(
     );
   }
 
-  logOldestWatchedShowAndMovie(
+  stats.logOldestWatchedShowAndMovie(
     userStats,
     mediaType,
     result.release_date || result.first_air_date,
@@ -333,7 +327,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const corsOptions = {
-  origin: "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app",
+  origin: [
+    "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // Vercel Preview
+    "https://statflix.vercel.app", // your prod custom domain (if used)
+  ],
   methods: ["GET", "POST"],
   credentials: false,
 };
