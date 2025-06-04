@@ -134,17 +134,19 @@ export function getUniqueTitlesWatched(userStats) {
  */
 export function logWatchTime(
   userStats,
-  normalizedTitle,
+  title,
   mediaType,
   timeWatched,
+  titleToData,
 ) {
   userStats.totalWatchTime += timeWatched;
 
-  if (userStats.watchTimeByTitle[normalizedTitle]) {
-    userStats.watchTimeByTitle[normalizedTitle].minutes += timeWatched;
+  if (userStats.watchTimeByTitle[title]) {
+    userStats.watchTimeByTitle[title].minutes += timeWatched;
   } else {
-    userStats.watchTimeByTitle[normalizedTitle] = {
+    userStats.watchTimeByTitle[title] = {
       mediaType: mediaType,
+      posterPath: titleToData[title].poster_path,
       minutes: timeWatched,
     };
   }
@@ -190,12 +192,13 @@ export function getTopWatchedTitles(userStats) {
 /**
  * Prints Most Watched Title
  */
-export function logMostWatchedTitle(userStats) {
+export function logMostWatchedTitle(userStats, titleToData) {
   const [title, mostWatched] = Object.entries(userStats.watchTimeByTitle).sort(
     (a, b) => b[1].minutes - a[1].minutes,
   )[0];
 
   userStats.mostWatchedTitle.title = title;
+  userStats.mostWatchedTitle.posterPath = titleToData[title].poster_path;
   userStats.mostWatchedTitle.minutes = mostWatched.minutes;
 }
 
@@ -214,7 +217,7 @@ export function getMostWatchedTitle(userStats) {
 /*
  * A binge is defined as a show you've watched back-to-back a minimum of once within 24 hours of the previous episode.
  */
-export function logMostBingedShow(userStats, titleToDateFreq) {
+export function logMostBingedShow(userStats, titleToDateFreq, titleToData) {
   function getHourDiff(date2, date1) {
     return (date2 - date1) / (1000 * 60 * 60);
   }
@@ -282,6 +285,7 @@ export function logMostBingedShow(userStats, titleToDateFreq) {
   }
   userStats.mostBingedShow = {
     title: mostBingedShow,
+    posterPath: titleToData[mostBingedShow].poster_path,
     eps_binged: longestBingeStreak,
     dates_binged: mostBingedDates,
   };
@@ -346,6 +350,7 @@ export function logOldestWatchedShowAndMovie(
   mediaType,
   release_date,
   title,
+  titleToData,
 ) {
   let date = new Date(release_date);
   // TV Show
@@ -353,12 +358,14 @@ export function logOldestWatchedShowAndMovie(
     if (userStats.oldestWatchedShow.title == "") {
       userStats.oldestWatchedShow = {
         title: title,
+        posterPath: titleToData[title].poster_path,
         dateObject: date,
         date: date.toDateString(userStats),
       };
     } else if (date < userStats.oldestWatchedShow.dateObject) {
       userStats.oldestWatchedShow = {
         title: title,
+        posterPath: titleToData[title].poster_path,
         dateObject: date,
         date: date.toDateString(userStats),
       };
@@ -368,12 +375,14 @@ export function logOldestWatchedShowAndMovie(
     if (userStats.oldestWatchedMovie.title == "") {
       userStats.oldestWatchedMovie = {
         title: title,
+        posterPath: titleToData[title].poster_path,
         dateObject: date,
         date: date.toDateString(),
       };
     } else if (date < userStats.oldestWatchedMovie.dateObject) {
       userStats.oldestWatchedMovie = {
         title: title,
+        posterPath: titleToData[title].poster_path,
         dateObject: date,
         date: date.toDateString(),
       };
