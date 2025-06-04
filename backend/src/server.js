@@ -348,8 +348,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// server.js
-
 app.get("/api/sample", async (req, res) => {
   updateProgress(0, 1);
   const filePath = path.resolve("./data", "sample.csv");
@@ -368,7 +366,15 @@ app.get("/api/progress", (req, res) => {
 });
 
 app.get("/api/stats", (req, res) => {
-  const output = req.app.locals.statsOutput || "No output generated yet.";
+  const output =
+    req.session?.statsOutput ||
+    req.app.locals.statsOutput ||
+    "No output generated yet.";
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   res.type("text/plain").send(output);
 });
 
