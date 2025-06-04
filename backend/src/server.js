@@ -320,11 +320,20 @@ import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const allowedOrigins = [
+  "https://statflix-lake.vercel.app",
+  "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // optional preview
+];
+
 const corsOptions = {
-  origin: [
-    "https://statflix-lake.vercel.app/",
-    "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // Vercel Preview
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.error("Blocked by CORS:", origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST"],
   credentials: false,
 };
