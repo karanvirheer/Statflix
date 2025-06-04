@@ -519,8 +519,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const corsOptions = {
-  origin: "http://localhost:3000", // Your frontend dev server
-  credentials: true,
+  origin: "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app",
+  methods: ["GET", "POST"],
+  credentials: false,
 };
 
 app.use(cors(corsOptions));
