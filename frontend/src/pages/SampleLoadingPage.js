@@ -59,11 +59,6 @@ function SampleLoadingPage() {
       try {
         const res = await fetch(`${API_BASE_URL}/api/progress`);
         const data = await res.json();
-
-        if (data?.title === undefined) {
-          data.title = "Getting title names...";
-        }
-
         setProgress(data);
 
         if (data.current >= data.total) {
@@ -112,7 +107,12 @@ function SampleLoadingPage() {
       >
         <h1>{message}</h1>
         <p>{`${progress.current} / ${progress.total}`}</p>
-        <p>{`${progress.title}`}</p>
+
+        <p>
+          {progress.title ||
+            "Fetching title" + ".".repeat(progress.current % 4)}
+        </p>
+
         <progress
           value={progress.current}
           max={progress.total}
