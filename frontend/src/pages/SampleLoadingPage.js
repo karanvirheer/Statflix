@@ -24,17 +24,25 @@ function SampleLoadingPage() {
         if (!res.ok) throw new Error("Failed to load sample");
 
         // 2. Wait for backend to fully write statsOutput
-        const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
-          cache: "no-store", // force fresh response
-        });
-        const statsText = await statsRes.text();
 
-        if (!statsText || statsText.includes("No output generated yet")) {
-          throw new Error("Stats not ready yet");
+        let statsText = "";
+        let maxRetries = 10;
+
+        for (let i = 0; i < maxRetries; i++) {
+          const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
+            cache: "no-store",
+          });
+          statsText = await statsRes.text();
+
+          if (statsText && !statsText.includes("No output")) {
+            navigate("/stats", { state: { statsText } });
+            return;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 500)); // wait 0.5s
         }
 
-        // 3. ✅ Now navigate with confirmed result
-        navigate("/stats", { state: { statsText } });
+        throw new Error("Stats not ready after retries");
       } catch (err) {
         console.error(err);
         setMessage("❌ Failed to load sample data.");
