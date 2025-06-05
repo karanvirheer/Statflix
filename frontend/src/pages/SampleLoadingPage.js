@@ -1,60 +1,75 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 function SampleLoadingPage() {
   const [progress, setProgress] = useState({ current: 0, total: 1 });
   const [message, setMessage] = useState("Loading sample data...");
   const [sampleLoaded, setSampleLoaded] = useState(false);
-  const hasFetched = useRef(false); // 🛡️ guards duplicate call
+  const hasFetched = useRef(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const useSample = location.state?.useSample ?? true;
+  const file = location.state?.file ?? null;
 
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
   useEffect(() => {
-    const fetchSample = async () => {
+    return () => {
+      fetch(`${API_BASE_URL}/api/reset`, {
+        method: "POST",
+      }).catch((err) => console.error("Reset failed", err));
+    };
+  }, [API_BASE_URL]);
+
+  useEffect(() => {
+    const runLoading = async () => {
       if (hasFetched.current) return;
       hasFetched.current = true;
 
       try {
-        // 1. Trigger backend processing
-        const res = await fetch(`${API_BASE_URL}/api/sample`, {
-          method: "GET",
-          cache: "no-store", // force bypass browser cache
-        });
-        if (!res.ok) throw new Error("Failed to load sample");
-
-        // 2. Wait for backend to fully write statsOutput
-
+        if (useSample) {
+          const res = await fetch(`${API_BASE_URL}/api/sample`, {
+            method: "GET",
+            cache: "no-store",
+          });
+          if (!res.ok) throw new Error("Failed to load sample data");
+        } else {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch(`${API_BASE_URL}/api/upload`, {
+            method: "POST",
+            body: formData,
+            cache: "no-store",
+          });
+          if (!res.ok) throw new Error("Failed to upload user file");
+        }
+        // 2. Poll /api/stats until ready
         let statsText = "";
         let maxRetries = 10;
-
         for (let i = 0; i < maxRetries; i++) {
           const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
             cache: "no-store",
           });
           statsText = await statsRes.text();
-
           if (statsText && !statsText.includes("No output")) {
             navigate("/stats", { state: { statsText } });
             return;
           }
-
-          await new Promise((resolve) => setTimeout(resolve, 500)); // wait 0.5s
+          await new Promise((r) => setTimeout(r, 500));
         }
 
         throw new Error("Stats not ready after retries");
       } catch (err) {
         console.error(err);
-        setMessage("❌ Failed to load sample data.");
+        setMessage("❌ Failed to load stats.");
       }
     };
 
-    fetchSample();
-  }, []);
+    runLoading();
+  }, [API_BASE_URL, navigate, useSample, file]);
 
   useEffect(() => {
-    // if (!sampleLoaded) return;
-
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/progress`);
@@ -72,7 +87,7 @@ function SampleLoadingPage() {
     }, 300);
 
     return () => clearInterval(interval);
-  }, [sampleLoaded, navigate]);
+  }, [API_BASE_URL, sampleLoaded, navigate]);
 
   return (
     <div

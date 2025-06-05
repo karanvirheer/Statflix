@@ -2,18 +2,21 @@ import fs from "fs";
 import path from "path";
 import csv from "csv-parser";
 import dotenv from "dotenv";
+import multer from "multer";
 import * as api from "./api/tmdb.js";
 import * as helper from "./utils/helpers.js";
-// import * as db from "./db/db.js";
 import * as db from "./db/sqlite.js";
 import * as stats from "./utils/logging.js";
 import {
   updateProgress,
-  resetProgress,
   progressState,
+  resetProgress,
 } from "./state/progress.js";
 
 dotenv.config();
+const upload = multer({ dest: "../uploads" });
+
+let controller = null;
 
 /*
  * ==============================
@@ -88,7 +91,7 @@ async function getTitleFromTMDB(normalizedTitle) {
  * @param {string} parsedTitle - TMDb Searchable Title
  * @returns {Promise<dict>} Information related to the title
  */
-async function getData(normalizedTitle) {
+async function getData(normalizedTitle, userStats) {
   let result = {};
 
   // 1
@@ -223,7 +226,7 @@ function printProgress(currRow, title, total) {
  * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
  */
 
-function parseCSV(filePath, titleToDateFreq, titleToData) {
+function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
@@ -267,7 +270,12 @@ function parseCSV(filePath, titleToDateFreq, titleToData) {
         let tempTitleToData = {};
         try {
           for (const title of Object.keys(titleToDateFreq)) {
-            let result = await getData(title);
+            if (signal?.aborted) {
+              console.warn("Aborted inside parseCSV loop");
+              return reject(new Error("Aborted"));
+            }
+
+            let result = await getData(title, userStats);
             if (!result) continue;
 
             const newTitle = result.normalized_title;
@@ -302,14 +310,18 @@ function parseCSV(filePath, titleToDateFreq, titleToData) {
   });
 }
 
-export async function main(filePath) {
+export async function main(filePath, signal) {
+  if (signal?.aborted) throw new Error("Aborted before start");
+
   const userStats = helper.createEmptyUserStats();
   let titleToDateFreq = {};
   let titleToData = {};
 
-  await parseCSV(filePath, titleToDateFreq, titleToData);
+  await parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal);
 
   for (const title of Object.keys(titleToDateFreq)) {
+    if (signal?.aborted) throw new Error("Aborted by user");
+
     const result = titleToData[title];
     logUserStats(userStats, result, title, titleToDateFreq, titleToData);
   }
@@ -330,6 +342,7 @@ const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = [
   "https://statflix-lake.vercel.app",
+  "http://localhost:3000",
   "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // optional preview
 ];
 
@@ -350,10 +363,12 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 app.get("/api/sample", async (req, res) => {
+  controller = new AbortController();
+  const signal = controller.signal;
   updateProgress(0, 1);
   const filePath = path.resolve("./data", "sample.csv");
   try {
-    const { userStats, captured } = await main(filePath);
+    const { userStats, captured } = await main(filePath, signal);
     req.app.locals.statsOutput = captured; // Store in memory for this session
     res.status(200).json({ message: "Sample loaded" });
   } catch (err) {
@@ -379,11 +394,33 @@ app.get("/api/stats", (req, res) => {
   res.type("text/plain").send(output);
 });
 
-// app.post("/api/reset", (req, res) => {
-//   resetProgress();
-//   req.app.locals.statsOutput = null;
-//   res.json({ message: "Reset complete" });
-// });
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  controller = new AbortController();
+  const signal = controller.signal;
+  const filePath = req.file.path;
+  updateProgress(0, 1);
+  try {
+    const { userStats, captured } = await main(filePath, signal);
+    req.app.locals.statsOutput = captured;
+    fs.unlinkSync(filePath);
+    res.json({ message: "Parsed successfully" });
+  } catch (err) {
+    console.error(err);
+    fs.unlinkSync(filePath); // still clean up on error
+    res.status(500).json({ error: "Failed to process CSV" });
+  }
+});
+
+app.post("/api/reset", (req, res) => {
+  if (controller) {
+    controller.abort();
+    controller = null;
+  }
+  resetProgress();
+  req.app.locals.statsOutput = null;
+  console.log("Reset triggered by frontend navigation");
+  res.sendStatus(200);
+});
 
 app.listen(process.env.PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);

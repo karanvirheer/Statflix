@@ -1,16 +1,27 @@
-import { useEffect, React } from "react";
+import { useState, useEffect, React } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/statflix_logo-01.svg";
 
 function HomePage() {
+  const [file, setFile] = useState(null);
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
   console.log("Base URL:", process.env.REACT_APP_API_BASE_URL);
 
-  // useEffect(() => {
-  //   fetch(process.env.REACT_APP_API_BASE_URL + "/api/reset", {
-  //     method: "POST",
-  //   }).catch((err) => console.error("Failed to reset backend:", err));
-  // }, []);
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setMessage("Please select a file first.");
+      return;
+    }
+    navigate("/sample-loading", {
+      state: { useSample: false, file },
+    });
+  };
+
   return (
     <div
       style={{
@@ -62,9 +73,8 @@ function HomePage() {
             fontSize: "0.95rem",
           }}
         >
-          ⚠️ This is a live demo. Upload is currently disabled while frontend is
-          in development. Please allow up to 60 seconds for the backend to wake
-          up due to free hosting limitations.
+          ⚠️ This is a live demo. Please allow up to 60 seconds for the backend
+          to wake up due to free hosting limitations.
         </div>
 
         {/* Instructions + Upload Section */}
@@ -91,10 +101,32 @@ function HomePage() {
               Instructions
             </h2>
 
-            <ul style={{ padding: 0, listStyleType: "none", fontSize: "1rem" }}>
-              <li>📁 Download your streaming history</li>
-              <li>📊 Try out the demo with sample data</li>
-              <li>🚀 Explore your watch stats</li>
+            <ul
+              style={{
+                padding: 0,
+                listStyleType: "none",
+                fontSize: "1rem",
+                lineHeight: "1.6",
+                margin: 0,
+              }}
+            >
+              <li>1. Log into your Netflix account</li>
+              <li>
+                2. Click on <strong>Account</strong> from the profile menu
+              </li>
+              <li>
+                3. Scroll down to <strong>Edit settings</strong> and select your
+                profile
+              </li>
+              <li>
+                4. Click <strong>Viewing activity</strong> under your profile
+                settings
+              </li>
+              <li>
+                5. On the Viewing Activity page, click{" "}
+                <strong>Download all</strong> at the bottom
+              </li>
+              <li>6. This will download a CSV file — upload that below!</li>
             </ul>
           </div>
 
@@ -114,30 +146,34 @@ function HomePage() {
             <input
               type="file"
               accept=".csv"
-              disabled
-              style={{ display: "block", margin: "10px auto", opacity: 0.5 }}
+              style={{ display: "block", margin: "10px auto", opacity: 1 }}
+              onChange={handleFileChange}
             />
             <button
-              disabled
+              onClick={handleUpload}
               style={{
-                background: "#ccc",
+                background: "#E50914",
                 color: "white",
                 padding: "10px 20px",
                 border: "none",
                 borderRadius: "5px",
                 fontSize: "1rem",
-                cursor: "not-allowed",
-                marginTop: "10px",
+                cursor: "pointer",
                 fontWeight: "bold",
               }}
             >
               Upload
             </button>
-
+            <p>{message}</p>
             <div style={{ margin: "15px 0", fontWeight: "bold" }}>OR</div>
 
             <button
-              onClick={() => navigate("/sample-loading", { replace: true })}
+              onClick={() =>
+                navigate("/sample-loading", {
+                  state: { useSample: true },
+                  replace: true,
+                })
+              }
               style={{
                 background: "#E50914",
                 color: "white",
