@@ -16,15 +16,24 @@ function SampleLoadingPage() {
       hasFetched.current = true;
 
       try {
-        // 1. Trigger backend CSV processing
-        const res = await fetch(`${API_BASE_URL}/api/sample`);
+        // 1. Trigger backend processing
+        const res = await fetch(`${API_BASE_URL}/api/sample`, {
+          method: "GET",
+          cache: "no-store", // force bypass browser cache
+        });
         if (!res.ok) throw new Error("Failed to load sample");
 
-        // 2. Now fetch the result from /api/stats
-        const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
+        // 2. Wait for backend to fully write statsOutput
+        const statsRes = await fetch(`${API_BASE_URL}/api/stats`, {
+          cache: "no-store", // force fresh response
+        });
         const statsText = await statsRes.text();
 
-        // 3. Navigate to StatsPage with result passed via React router state
+        if (!statsText || statsText.includes("No output generated yet")) {
+          throw new Error("Stats not ready yet");
+        }
+
+        // 3. ✅ Now navigate with confirmed result
         navigate("/stats", { state: { statsText } });
       } catch (err) {
         console.error(err);
