@@ -6,11 +6,11 @@ function HomePage() {
   const navigate = useNavigate();
   console.log("Base URL:", process.env.REACT_APP_API_BASE_URL);
 
-  useEffect(() => {
-    fetch(process.env.REACT_APP_API_BASE_URL + "/api/reset", {
-      method: "POST",
-    }).catch((err) => console.error("Failed to reset backend:", err));
-  }, []);
+  // useEffect(() => {
+  //   fetch(process.env.REACT_APP_API_BASE_URL + "/api/reset", {
+  //     method: "POST",
+  //   }).catch((err) => console.error("Failed to reset backend:", err));
+  // }, []);
   return (
     <div
       style={{

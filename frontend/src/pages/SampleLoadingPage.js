@@ -46,7 +46,6 @@ function SampleLoadingPage() {
 
         if (data.current >= data.total) {
           clearInterval(interval);
-          navigate("/stats");
         }
       } catch (err) {
         console.error("Progress poll failed:", err);

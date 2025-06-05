@@ -378,11 +378,11 @@ app.get("/api/stats", (req, res) => {
   res.type("text/plain").send(output);
 });
 
-app.post("/api/reset", (req, res) => {
-  resetProgress();
-  req.app.locals.statsOutput = null;
-  res.json({ message: "Reset complete" });
-});
+// app.post("/api/reset", (req, res) => {
+//   resetProgress();
+//   req.app.locals.statsOutput = null;
+//   res.json({ message: "Reset complete" });
+// });
 
 app.listen(process.env.PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
