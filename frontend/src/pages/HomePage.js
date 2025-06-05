@@ -63,7 +63,8 @@ function HomePage() {
           }}
         >
           ⚠️ This is a live demo. Upload is currently disabled while frontend is
-          in development.
+          in development. Please allow up to 60 seconds for the backend to wake
+          up due to free hosting limitations.
         </div>
 
         {/* Instructions + Upload Section */}

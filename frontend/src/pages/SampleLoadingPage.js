@@ -59,6 +59,11 @@ function SampleLoadingPage() {
       try {
         const res = await fetch(`${API_BASE_URL}/api/progress`);
         const data = await res.json();
+
+        if (data?.title === undefined) {
+          data.title = "Getting title names...";
+        }
+
         setProgress(data);
 
         if (data.current >= data.total) {
