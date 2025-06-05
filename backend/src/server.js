@@ -303,7 +303,7 @@ function parseCSV(filePath, titleToDateFreq, titleToData) {
 }
 
 export async function main(filePath) {
-  const userStats = helper.createEmptyUserStats(); // create this helper
+  const userStats = helper.createEmptyUserStats();
   let titleToDateFreq = {};
   let titleToData = {};
 
@@ -316,7 +316,8 @@ export async function main(filePath) {
 
   helper.enablePrintCapture();
   stats.printUserStats(userStats);
-  const captured = helper.disablePrintCapture();
+  helper.disablePrintCapture();
+  const captured = helper.getCapturedOutput();
 
   return { userStats, captured };
 }
