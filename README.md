@@ -29,4 +29,4 @@ StatFlix is a full-stack web application that helps users upload and analyze the
 
 **Deployment & Environment**  
 - [Docker](https://www.docker.com/) – Containerized environment for consistent development and deployment  
-- (Optional: Vercel / Render / Railway / Fly.io for hosting)
+- Vercel / Render - Hosting
