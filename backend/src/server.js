@@ -12,6 +12,7 @@ import {
   progressState,
   resetProgress,
 } from "./state/progress.js";
+import { sessionCache } from "./state/sessionCache.js";
 
 dotenv.config();
 const upload = multer({ dest: "../uploads" });
@@ -101,6 +102,10 @@ async function getData(normalizedTitle, userStats) {
     return result;
   }
 
+  if (sessionCache.has(normalizedTitle)) {
+    return sessionCache.get(normalizedTitle);
+  }
+
   // 2
   // Pride & Prejudice edge case
   // The Office (U.S) edge case
@@ -111,6 +116,10 @@ async function getData(normalizedTitle, userStats) {
   if (result) {
     // console.log("Method 2: AND SWAP");
     return result;
+  }
+
+  if (sessionCache.has(searchTerm)) {
+    return sessionCache.get(searchTerm);
   }
 
   // 3
@@ -124,6 +133,10 @@ async function getData(normalizedTitle, userStats) {
       if (result) {
         // console.log("Method 3: TITLE SIMILARITY");
         return result;
+      }
+
+      if (sessionCache.has(searchTerm)) {
+        return sessionCache.get(searchTerm);
       }
       titleChunks.pop();
     }
@@ -164,6 +177,7 @@ async function getData(normalizedTitle, userStats) {
     }
     // await db.cacheResult(result);
     // console.log("========= CACHED RESULT =========");
+    sessionCache.set(normalizedTitle, result);
     await new Promise((r) => setTimeout(r, 300));
     // console.log("Method 4: API CALL");
 
