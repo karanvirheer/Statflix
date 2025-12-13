@@ -64,13 +64,6 @@ function HomePage() {
                 <p className="tagline">Your streaming habits, visualized.</p>
               </div>
             </div>
-
-            <div className="pill">
-              <span className="dot-red" />
-              Netflix <span style={{ opacity: 0.6 }}>×</span>{" "}
-              <span className="dot-green" />
-              Spotify
-            </div>
           </header>
 
           <div className="callout">

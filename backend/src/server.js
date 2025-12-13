@@ -258,9 +258,7 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
             "CSV is invalid. It must contain only 'Title' and 'Date' columns."
           );
           return reject(
-            new Error(
-              "Invalid CSV headers (expected: Title, Date)."
-            )
+            new Error("Invalid CSV headers (expected: Title, Date).")
           );
         } else {
           console.log("CSV is valid.");
@@ -314,7 +312,9 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
           }
 
           // Replace outer refs
-          Object.keys(titleToDateFreq).forEach((key) => delete titleToDateFreq[key]);
+          Object.keys(titleToDateFreq).forEach(
+            (key) => delete titleToDateFreq[key]
+          );
           Object.assign(titleToDateFreq, tempTitleToDateFreq);
 
           Object.assign(titleToData, tempTitleToData);
@@ -362,7 +362,10 @@ function enhanceUserStatsForFrontend(userStats) {
   if (!userStats || typeof userStats !== "object") return userStats;
 
   // watchTimeByTitle: { [title]: { minutes, mediaType, posterPath } }
-  if (userStats.watchTimeByTitle && typeof userStats.watchTimeByTitle === "object") {
+  if (
+    userStats.watchTimeByTitle &&
+    typeof userStats.watchTimeByTitle === "object"
+  ) {
     for (const t of Object.keys(userStats.watchTimeByTitle)) {
       const v = userStats.watchTimeByTitle[t];
       if (v && typeof v === "object" && "posterPath" in v) {
@@ -382,7 +385,10 @@ function enhanceUserStatsForFrontend(userStats) {
   }
 
   // mostWatchedTitle: { title, minutes, posterPath }
-  if (userStats.mostWatchedTitle && typeof userStats.mostWatchedTitle === "object") {
+  if (
+    userStats.mostWatchedTitle &&
+    typeof userStats.mostWatchedTitle === "object"
+  ) {
     userStats.mostWatchedTitle.posterUrl = posterUrlFromPath(
       userStats.mostWatchedTitle.posterPath
     );

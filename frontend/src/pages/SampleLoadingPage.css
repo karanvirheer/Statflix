@@ -1,0 +1,128 @@
+.sl-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+}
+
+.sl-card {
+  width: min(980px, 92vw);
+  padding: 34px 34px 28px;
+  border-radius: 16px;
+
+  background: rgba(8, 10, 12, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.55);
+
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.sl-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.sl-title {
+  font-size: 28px;
+  font-weight: 750;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.02em;
+}
+
+.sl-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sl-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff2e2e;
+  box-shadow: 0 0 10px rgba(255, 50, 50, 0.8);
+}
+
+.sl-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sl-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    #ff2e2e 0%,
+    #ff8a00 33%,
+    #ffe600 66%,
+    #1ee36b 100%
+  );
+  transition: width 180ms ease;
+}
+
+.sl-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.sl-help {
+  margin-top: 20px;
+  padding: 16px;
+
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sl-help-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 6px;
+}
+
+.sl-help-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+@media (max-width: 520px) {
+  .sl-card {
+    padding: 22px 18px 18px;
+  }
+  .sl-title {
+    font-size: 22px;
+  }
+}
