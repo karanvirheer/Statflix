@@ -38,7 +38,19 @@ export default function StatsPage() {
   const [err, setErr] = useState("");
   const [page, setPage] = useState(0);
 
-  const wheelLock = useRef(false);
+  // ✅ Trackpad / wheel handling (one swipe -> one slide)
+  const rootRef = useRef(null);
+  const wheelAccum = useRef(0);
+  const wheelCooldown = useRef(false);
+
+  // ✅ Stop the browser from scrolling the page while you're in this full-screen experience
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -91,7 +103,9 @@ export default function StatsPage() {
       ? {
           title: stats.mostWatchedTitle.title,
           minutes: Number(stats.mostWatchedTitle.minutes || 0),
-          poster: tmdbPosterUrl(stats.mostWatchedTitle.posterPath),
+          poster:
+            stats.mostWatchedTitle.posterUrl ||
+            tmdbPosterUrl(stats.mostWatchedTitle.posterPath),
         }
       : null;
 
@@ -118,7 +132,9 @@ export default function StatsPage() {
       ? {
           title: stats.oldestWatchedShow.title,
           date: stats.oldestWatchedShow.date,
-          poster: tmdbPosterUrl(stats.oldestWatchedShow.posterPath),
+          poster:
+            stats.oldestWatchedShow.posterUrl ||
+            tmdbPosterUrl(stats.oldestWatchedShow.posterPath),
         }
       : null;
 
@@ -126,7 +142,9 @@ export default function StatsPage() {
       ? {
           title: stats.oldestWatchedMovie.title,
           date: stats.oldestWatchedMovie.date,
-          poster: tmdbPosterUrl(stats.oldestWatchedMovie.posterPath),
+          poster:
+            stats.oldestWatchedMovie.posterUrl ||
+            tmdbPosterUrl(stats.oldestWatchedMovie.posterPath),
         }
       : null;
 
@@ -291,6 +309,7 @@ export default function StatsPage() {
                 <div className="poster-sub">{oldestShow?.date || ""}</div>
               </div>
             </div>
+
             <div
               className="small-poster"
               style={
@@ -306,6 +325,7 @@ export default function StatsPage() {
                 <div className="poster-sub">{oldestMovie?.date || ""}</div>
               </div>
             </div>
+
             <div className="completed">
               <div className="completed-head">
                 <span className="completed-count">{completedCount}</span>{" "}
@@ -331,6 +351,7 @@ export default function StatsPage() {
   const next = () => setPage((p) => clamp(p + 1, 0, Math.max(0, total - 1)));
   const prev = () => setPage((p) => clamp(p - 1, 0, Math.max(0, total - 1)));
 
+  // ✅ Keyboard nav
   useEffect(() => {
     const onKeyDown = (e) => {
       if (
@@ -352,20 +373,49 @@ export default function StatsPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigate, total]);
 
-  const onWheel = (e) => {
-    if (!total) return;
-    if (wheelLock.current) return;
-    wheelLock.current = true;
-    setTimeout(() => (wheelLock.current = false), 550);
+  // ✅ Wheel / trackpad: one swipe => one slide
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
 
-    if (e.deltaY > 0) next();
-    else prev();
-  };
+    const THRESH = 140; // increase if still too sensitive
+    const COOLDOWN = 650;
+
+    const handler = (e) => {
+      if (!total) return;
+      e.preventDefault();
+
+      if (wheelCooldown.current) return;
+
+      const delta =
+        e.deltaMode === 1
+          ? e.deltaY * 16
+          : e.deltaMode === 2
+          ? e.deltaY * window.innerHeight
+          : e.deltaY;
+
+      wheelAccum.current += delta;
+
+      if (Math.abs(wheelAccum.current) < THRESH) return;
+
+      if (wheelAccum.current > 0) next();
+      else prev();
+
+      wheelAccum.current = 0;
+      wheelCooldown.current = true;
+      setTimeout(() => {
+        wheelCooldown.current = false;
+      }, COOLDOWN);
+    };
+
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, [total]);
 
   const slide = slides[page];
 
   return (
-    <div className="stats-root" onWheel={onWheel}>
+    <div className="stats-root" ref={rootRef}>
       <button className="stats-home" onClick={() => navigate("/")}>
         Home
       </button>
