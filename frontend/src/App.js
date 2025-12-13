@@ -1,22 +1,32 @@
+// App.js
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import HomePage from "./pages/HomePage";
 import LayoutWithBackground from "./components/LayoutWithBackground";
 import SampleLoadingPage from "./pages/SampleLoadingPage";
 import StatsPage from "./pages/StatsPage";
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
+
   return (
-    <Router>
-      <LayoutWithBackground>
-        <Routes>
-          <Route path="/" element={<HomePage key={Date.now()} />} />
+    <LayoutWithBackground>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          <Route path="/" element={<HomePage />} />
           <Route path="/sample-loading" element={<SampleLoadingPage />} />
           <Route path="/stats" element={<StatsPage />} />
         </Routes>
-      </LayoutWithBackground>
-    </Router>
+      </AnimatePresence>
+    </LayoutWithBackground>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <Router>
+      <AppRoutes />
+    </Router>
+  );
+}

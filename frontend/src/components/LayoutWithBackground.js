@@ -3,16 +3,9 @@ import BackgroundHome from "./BackgroundHome";
 
 const LayoutWithBackground = ({ children }) => {
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        minHeight: "100vh",
-        overflow: "hidden",
-      }}
-    >
+    <div className="app-shell">
       <BackgroundHome />
-      <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
+      <div className="app-content">{children}</div>
     </div>
   );
 };

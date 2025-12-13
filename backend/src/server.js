@@ -14,14 +14,27 @@ import {
 } from "./state/progress.js";
 import { sessionCache } from "./state/sessionCache.js";
 
+import express from "express";
+import cors from "cors";
+
 dotenv.config();
-const upload = multer({ dest: "../uploads" });
+
+const PORT = process.env.PORT || 3001;
+
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
+const posterUrlFromPath = (posterPath) =>
+  posterPath ? `${TMDB_IMAGE_BASE}${posterPath}` : null;
+
+// Ensure uploads directory exists (absolute, stable path)
+const uploadDir = path.resolve(process.cwd(), "uploads");
+fs.mkdirSync(uploadDir, { recursive: true });
+const upload = multer({ dest: uploadDir });
 
 let controller = null;
 
 /*
  * ==============================
- *          MAIN FUNCTION
+ *          TMDB MATCHING
  * ==============================
  */
 
@@ -44,7 +57,7 @@ async function getTitleFromTMDB(normalizedTitle) {
   }
 
   let sortedByPopularity = topCandidates.sort(
-    (a, b) => b.popularity - a.popularity,
+    (a, b) => b.popularity - a.popularity
   );
 
   let highestScore = 0;
@@ -89,59 +102,48 @@ async function getTitleFromTMDB(normalizedTitle) {
 /**
  * Gets the TMDb data for a title.
  *
- * @param {string} parsedTitle - TMDb Searchable Title
- * @returns {Promise<dict>} Information related to the title
+ * @param {string} normalizedTitle - TMDb Searchable Title
+ * @returns {Promise<object>} Information related to the title
  */
 async function getData(normalizedTitle, userStats) {
   let result = {};
 
-  // 1
+  // 1) SQLite cache
   result = db.getCachedResult(normalizedTitle);
-  if (result) {
-    // console.log("Method 1: EXIST");
-    return result;
-  }
+  if (result) return result;
 
+  // 1b) in-memory session cache
   if (sessionCache.has(normalizedTitle)) {
     return sessionCache.get(normalizedTitle);
   }
 
-  // 2
-  // Pride & Prejudice edge case
-  // The Office (U.S) edge case
+  // 2) edge cases: & -> and, strip (...) etc
   let searchTerm = normalizedTitle.replaceAll("&", "and");
   const index = searchTerm.indexOf("(");
-  searchTerm = searchTerm.substring(0, index).trim();
+  if (index !== -1) searchTerm = searchTerm.substring(0, index).trim();
+
   result = db.getCachedResult(searchTerm);
-  if (result) {
-    // console.log("Method 2: AND SWAP");
-    return result;
-  }
+  if (result) return result;
 
   if (sessionCache.has(searchTerm)) {
     return sessionCache.get(searchTerm);
   }
 
-  // 3
-  // Search by progressively removing ":" keyword
+  // 3) progressively remove ":" chunks and try fuzzy match in DB
   if (normalizedTitle.indexOf(":") > -1) {
     let titleChunks = normalizedTitle.trim().split(":");
     titleChunks.pop();
     while (titleChunks.length > 0) {
-      const searchTerm = titleChunks.join("");
-      result = await db.getBestTitleMatch(searchTerm);
-      if (result) {
-        // console.log("Method 3: TITLE SIMILARITY");
-        return result;
-      }
+      const chunkTerm = titleChunks.join("");
+      result = await db.getBestTitleMatch(chunkTerm);
+      if (result) return result;
 
-      if (sessionCache.has(searchTerm)) {
-        return sessionCache.get(searchTerm);
-      }
+      if (sessionCache.has(chunkTerm)) return sessionCache.get(chunkTerm);
       titleChunks.pop();
     }
   }
 
+  // 4) live TMDb search
   let match = await getTitleFromTMDB(normalizedTitle);
   if (match) {
     if (match.media_type == "tv") {
@@ -158,8 +160,6 @@ async function getData(normalizedTitle, userStats) {
         first_air_date: match.first_air_date || null,
         poster_path: match.poster_path || null,
       };
-
-      // Movie
     } else {
       result = {
         normalized_title: match.title || null,
@@ -175,12 +175,12 @@ async function getData(normalizedTitle, userStats) {
         poster_path: match.poster_path || null,
       };
     }
-    // await db.cacheResult(result);
-    // console.log("========= CACHED RESULT =========");
-    sessionCache.set(normalizedTitle, result);
-    await new Promise((r) => setTimeout(r, 300));
-    // console.log("Method 4: API CALL");
 
+    // Save to in-memory session cache for this run
+    sessionCache.set(normalizedTitle, result);
+
+    // tiny delay to be nice to TMDb
+    await new Promise((r) => setTimeout(r, 300));
     return result;
   } else {
     stats.logMissedTitles(userStats, normalizedTitle);
@@ -188,6 +188,12 @@ async function getData(normalizedTitle, userStats) {
 
   return result;
 }
+
+/*
+ * ==============================
+ *          STATS LOGGING
+ * ==============================
+ */
 
 function logUserStats(userStats, result, title, titleToDateFreq, titleToData) {
   const titleFrequency = helper.getTitleWatchFrequency(titleToDateFreq, title);
@@ -211,7 +217,7 @@ function logUserStats(userStats, result, title, titleToDateFreq, titleToData) {
       titleToDateFreq,
       userStats,
       result.number_of_episodes,
-      title,
+      title
     );
   }
 
@@ -220,7 +226,7 @@ function logUserStats(userStats, result, title, titleToDateFreq, titleToData) {
     mediaType,
     result.release_date || result.first_air_date,
     title,
-    titleToData,
+    titleToData
   );
 }
 
@@ -229,15 +235,10 @@ function printProgress(currRow, title, total) {
   console.log(`${currRow} / ${total}`);
 }
 
-/**
- * Parses users NetflixViewingActivity CSV file.
- * Extracts searchable TMDb titles and parses dates when user watched the title.
- *
- * @async
- * @function
- * @returns null
- *
- * @throws Will reject the promise if an error occurs during CSV parsing or API calls.
+/*
+ * ==============================
+ *          CSV PARSER
+ * ==============================
  */
 
 function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
@@ -254,14 +255,19 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
 
         if (!isValid) {
           console.error(
-            "CSV is invalid. It must contain only 'Title' and 'Date' columns.",
+            "CSV is invalid. It must contain only 'Title' and 'Date' columns."
           );
-          return process.exit(1);
+          return reject(
+            new Error(
+              "Invalid CSV headers (expected: Title, Date)."
+            )
+          );
         } else {
           console.log("CSV is valid.");
         }
       })
       .on("data", (row) => {
+        // NOTE: Netflix export headers are usually "Title" and "Date"
         if (helper.isValidString(row.Title) && helper.isValidString(row.Date)) {
           const title = helper.removeEpisodicKeywords(row.Title);
           const date = helper.getDate(row.Date);
@@ -282,6 +288,7 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
         let currRow = 0;
         let tempTitleToDateFreq = {};
         let tempTitleToData = {};
+
         try {
           for (const title of Object.keys(titleToDateFreq)) {
             if (signal?.aborted) {
@@ -298,7 +305,7 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
               title,
               newTitle,
               titleToDateFreq,
-              tempTitleToDateFreq,
+              tempTitleToDateFreq
             );
 
             tempTitleToData[newTitle] = result;
@@ -306,11 +313,8 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
             printProgress(currRow, title, Object.keys(titleToDateFreq).length);
           }
 
-          // Replace outer reference
-          //
-          Object.keys(titleToDateFreq).forEach(
-            (key) => delete titleToDateFreq[key],
-          );
+          // Replace outer refs
+          Object.keys(titleToDateFreq).forEach((key) => delete titleToDateFreq[key]);
           Object.assign(titleToDateFreq, tempTitleToDateFreq);
 
           Object.assign(titleToData, tempTitleToData);
@@ -320,7 +324,8 @@ function parseCSV(filePath, titleToDateFreq, titleToData, userStats, signal) {
         } catch (error) {
           reject(error);
         }
-      });
+      })
+      .on("error", (err) => reject(err));
   });
 }
 
@@ -335,7 +340,6 @@ export async function main(filePath, signal) {
 
   for (const title of Object.keys(titleToDateFreq)) {
     if (signal?.aborted) throw new Error("Aborted by user");
-
     const result = titleToData[title];
     logUserStats(userStats, result, title, titleToDateFreq, titleToData);
   }
@@ -348,26 +352,88 @@ export async function main(filePath, signal) {
   return { userStats, captured };
 }
 
-// ========================================
-import express from "express";
-import cors from "cors";
+/*
+ * ==============================
+ *     ENHANCE JSON FOR UI
+ * ==============================
+ */
+
+function enhanceUserStatsForFrontend(userStats) {
+  if (!userStats || typeof userStats !== "object") return userStats;
+
+  // watchTimeByTitle: { [title]: { minutes, mediaType, posterPath } }
+  if (userStats.watchTimeByTitle && typeof userStats.watchTimeByTitle === "object") {
+    for (const t of Object.keys(userStats.watchTimeByTitle)) {
+      const v = userStats.watchTimeByTitle[t];
+      if (v && typeof v === "object" && "posterPath" in v) {
+        v.posterUrl = posterUrlFromPath(v.posterPath);
+      }
+    }
+  }
+
+  // topWatchedTitles: [ [title, {minutes, posterPath, ...}], ... ]
+  if (Array.isArray(userStats.topWatchedTitles)) {
+    userStats.topWatchedTitles.forEach((pair) => {
+      const data = pair?.[1];
+      if (data && typeof data === "object" && "posterPath" in data) {
+        data.posterUrl = posterUrlFromPath(data.posterPath);
+      }
+    });
+  }
+
+  // mostWatchedTitle: { title, minutes, posterPath }
+  if (userStats.mostWatchedTitle && typeof userStats.mostWatchedTitle === "object") {
+    userStats.mostWatchedTitle.posterUrl = posterUrlFromPath(
+      userStats.mostWatchedTitle.posterPath
+    );
+  }
+
+  // oldestShow / oldestMovie: { title, date, data: { posterPath, ... } }
+  if (userStats.oldestShow?.data?.posterPath) {
+    userStats.oldestShow.data.posterUrl = posterUrlFromPath(
+      userStats.oldestShow.data.posterPath
+    );
+  }
+  if (userStats.oldestMovie?.data?.posterPath) {
+    userStats.oldestMovie.data.posterUrl = posterUrlFromPath(
+      userStats.oldestMovie.data.posterPath
+    );
+  }
+
+  // Give frontend the base too (optional)
+  userStats.tmdbImageBase = TMDB_IMAGE_BASE;
+
+  return userStats;
+}
+
+function resolveSampleCsvPath() {
+  const candidates = [
+    path.resolve(process.cwd(), "data", "sample.csv"),
+    path.resolve(process.cwd(), "backend", "data", "sample.csv"),
+    path.resolve(process.cwd(), "data", "sample-backup.csv"),
+    path.resolve(process.cwd(), "backend", "data", "sample-backup.csv"),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
+
+/*
+ * ==============================
+ *            API
+ * ==============================
+ */
+
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = [
   "https://statflix-lake.vercel.app",
   "http://localhost:3000",
-  "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app", // optional preview
+  "https://statflix-mmqcz2iwv-karanvir-heers-projects.vercel.app",
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.error("Blocked by CORS:", origin);
-      callback(new Error("Not allowed by CORS"));
-    }
+    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST"],
   credentials: false,
@@ -379,15 +445,29 @@ app.use(express.json());
 app.get("/api/sample", async (req, res) => {
   controller = new AbortController();
   const signal = controller.signal;
+
+  resetProgress();
   updateProgress(0, 1);
-  const filePath = path.resolve("./data", "sample.csv");
+
   try {
+    const filePath = resolveSampleCsvPath();
+    if (!filePath) {
+      return res.status(500).json({
+        error: "Sample CSV not found. Expected data/sample.csv",
+      });
+    }
+
     const { userStats, captured } = await main(filePath, signal);
-    req.app.locals.statsOutput = captured; // Store in memory for this session
-    res.status(200).json({ message: "Sample loaded" });
+
+    // Store for later /api/stats + /api/stats-json calls
+    app.locals.statsOutput = captured;
+    app.locals.userStats = enhanceUserStatsForFrontend(userStats);
+
+    return res.json({ message: "Sample processed." });
   } catch (err) {
     console.error("❌ Sample handler error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    if (res.headersSent) return;
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -396,32 +476,58 @@ app.get("/api/progress", (req, res) => {
 });
 
 app.get("/api/stats", (req, res) => {
-  const output =
-    req.session?.statsOutput ||
-    req.app.locals.statsOutput ||
-    "No output generated yet.";
+  const output = app.locals.statsOutput || "No output generated yet.";
 
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
 
-  res.type("text/plain").send(output);
+  return res.type("text/plain").send(output);
+});
+
+app.get("/api/stats-json", (req, res) => {
+  const s = app.locals.userStats || null;
+  if (!s) return res.status(404).json({ error: "No stats generated yet." });
+
+  res.setHeader("Cache-Control", "no-store");
+  return res.json(s);
 });
 
 app.post("/api/upload", upload.single("file"), async (req, res) => {
   controller = new AbortController();
   const signal = controller.signal;
-  const filePath = req.file.path;
+
+  resetProgress();
   updateProgress(0, 1);
+
+  if (!req.file?.path) {
+    return res.status(400).json({ error: "No file uploaded." });
+  }
+
+  const filePath = req.file.path;
+
   try {
     const { userStats, captured } = await main(filePath, signal);
-    req.app.locals.statsOutput = captured;
-    fs.unlinkSync(filePath);
-    res.json({ message: "Parsed successfully" });
+
+    app.locals.statsOutput = captured;
+    app.locals.userStats = enhanceUserStatsForFrontend(userStats);
+
+    // cleanup
+    try {
+      fs.unlinkSync(filePath);
+    } catch {}
+
+    return res.json({ message: "Parsed successfully" });
   } catch (err) {
-    console.error(err);
-    fs.unlinkSync(filePath); // still clean up on error
-    res.status(500).json({ error: "Failed to process CSV" });
+    console.error("❌ Upload handler error:", err);
+
+    // cleanup if possible
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch {}
+
+    if (res.headersSent) return;
+    return res.status(500).json({ error: "Error parsing CSV file." });
   }
 });
 
@@ -431,11 +537,11 @@ app.post("/api/reset", (req, res) => {
     controller = null;
   }
   resetProgress();
-  req.app.locals.statsOutput = null;
-  console.log("Reset triggered by frontend navigation");
-  res.sendStatus(200);
+  app.locals.statsOutput = null;
+  app.locals.userStats = null;
+  return res.sendStatus(200);
 });
 
-app.listen(process.env.PORT, () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
