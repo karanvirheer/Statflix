@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/statflix_logo-01.svg";
+import { event as trackEvent } from "../lib/analytics";
 
 function HomePage() {
   const [file, setFile] = useState(null);
@@ -14,13 +15,30 @@ function HomePage() {
     const picked = e.target.files?.[0] ?? null;
     setFile(picked);
     setMessage("");
+
+    // GA: user selected a file
+    if (picked) {
+      trackEvent("csv_selected", {
+        page: "home",
+        file_name: picked.name,
+        file_type: picked.type || "unknown",
+      });
+    }
   };
 
   const handleUpload = async () => {
+    // GA: user clicked upload/analyze
+    trackEvent("click_upload_analyze", {
+      page: "home",
+      has_file: !!file,
+      file_name: file?.name || "",
+    });
+
     if (!file) {
       setMessage("Please select a CSV first.");
       return;
     }
+
     navigate("/sample-loading", { state: { useSample: false, file } });
   };
 
@@ -46,11 +64,23 @@ function HomePage() {
 
     if (!isCsv) {
       setMessage("Please drop a .csv file.");
+      trackEvent("csv_drop_rejected", {
+        page: "home",
+        file_name: dropped.name,
+        file_type: dropped.type || "unknown",
+      });
       return;
     }
 
     setFile(dropped);
     setMessage("");
+
+    // GA: user dropped a CSV file
+    trackEvent("csv_dropped", {
+      page: "home",
+      file_name: dropped.name,
+      file_type: dropped.type || "unknown",
+    });
   };
 
   return (
@@ -67,8 +97,8 @@ function HomePage() {
           </header>
 
           <div className="callout">
-            <strong>Heads up:</strong> this is a live demo — the backend may take
-            ~60 seconds to wake up on free hosting.
+            <strong>Heads up:</strong> this is a live demo — the backend may
+            take ~60 seconds to wake up on free hosting.
           </div>
 
           <div className="grid-2">
@@ -131,11 +161,22 @@ function HomePage() {
 
                 <div className="dropzone-title">NetflixViewingActivity.csv</div>
                 <div className="dropzone-sub">
-                  {file ? `Selected: ${file.name}` : "Choose a CSV or drag & drop it here"}
+                  {file
+                    ? `Selected: ${file.name}`
+                    : "Choose a CSV or drag & drop it here"}
                 </div>
 
                 <div className="dropzone-actions">
-                  <label className="btn btn-file" htmlFor="csvInput">
+                  <label
+                    className="btn btn-file"
+                    htmlFor="csvInput"
+                    onClick={() =>
+                      trackEvent("click_choose_csv", {
+                        page: "home",
+                        has_file: !!file,
+                      })
+                    }
+                  >
                     {file ? "Change CSV" : "Choose CSV"}
                   </label>
 
@@ -162,18 +203,20 @@ function HomePage() {
 
               <button
                 className="btn btn-secondary btn-or"
-                onClick={() =>
+                onClick={() => {
+                  trackEvent("click_try_sample", { page: "home" });
                   navigate("/sample-loading", {
                     state: { useSample: true },
                     replace: true,
-                  })
-                }
+                  });
+                }}
               >
                 Try Sample Data
               </button>
 
               <div className="or-help">
-                No upload required — explore the dashboard instantly with curated sample data.
+                No upload required — explore the dashboard instantly with
+                curated sample data.
               </div>
             </div>
           </div>
