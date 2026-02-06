@@ -8,13 +8,18 @@
 StatFlix is a ["Spotify Wrapped"](https://newsroom.spotify.com/2025-12-03/2025-wrapped-user-experience/) style web app that turns your Netflix `ViewingActivity.csv` into a visual recap of your watching habits. Upload your exported viewing history and StatFlix parses it into meaningful stats like your top genres, total watch time, most watched titles, biggest binge streaks, completed shows, and your oldest throwback picks. All titles are enriched with TMDb metadata such as posters and release dates, then presented as an animated, slide-based story you can click through and share.
 
 <p align="center">
-  <img src="/assets/Statflix_Demo.gif" alt="StatFlix Banner"/>
+  <img src="/assets/Statflix_Demo.gif" alt="StatFlix Demo"/>
 </p>
 
 ## How It Works
 You upload your history (or try the sample dataset), and the backend parses each row, normalizes titles, and matches them against [TMDb](https://www.themoviedb.org/) to pull metadata like media type, genres, release dates, and poster paths. As it processes titles, it aggregates everything into a single stats JSON: top genres, unique titles, total watch time, top titles by minutes watched, binge streaks, completed shows, and oldest watched show/movie.
 
 The frontend then fetches that stats JSON and presents it as a scrollable, animated slideshow using Framer Motion. Posters are displayed using TMDb’s image base URL plus each title’s `poster_path`, and the UI guides you through each stat card like a mini Netflix Wrapped, with smooth transitions and keyboard/scroll navigation.
+
+<p align="center">
+  <img src="/assets/Statflix_Diagram.jpg" alt="StatFlix Diagram"/>
+</p>
+
 
 ```mermaid
 flowchart TD
