@@ -2,7 +2,15 @@
   <img src="./frontend/src/assets/statflix_logo-01.svg" alt="StatFlix Banner" width="400"/>
 </p>
 
-**[StatFlix](https://statflix-lake.vercel.app)** was created to let Netflix users upload and analyze their viewing history.
+<p align="center">
+  <strong>Personal viewing analytics and insights from your Netflix watch history.</strong>
+</p>
+
+<p align="center">
+  <a href="https://statflix-lake.vercel.app">Live Site</a> ·
+  <a href="https://www.themoviedb.org/">TMDb API</a>
+</p>
+
 
 ## About
 StatFlix is a ["Spotify Wrapped"](https://newsroom.spotify.com/2025-12-03/2025-wrapped-user-experience/) style web app that turns your Netflix `ViewingActivity.csv` into a visual recap of your watching habits. Upload your exported viewing history and StatFlix parses it into meaningful stats like your top genres, total watch time, most watched titles, biggest binge streaks, completed shows, and your oldest throwback picks. All titles are enriched with TMDb metadata such as posters and release dates, then presented as an animated, slide-based story you can click through and share.
